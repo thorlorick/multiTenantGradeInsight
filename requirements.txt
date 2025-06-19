@@ -1,9 +1,35 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-psycopg2-binary
-python-multipart
-pandas
-Jinja2
-python-dotenv
-email-validator
+# Core FastAPI and web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Database drivers and ORM
+asyncpg==0.29.0          # PostgreSQL async driver
+psycopg2-binary==2.9.9   # PostgreSQL sync driver (for migrations)
+sqlalchemy==2.0.23       # Database ORM
+alembic==1.12.1          # Database migrations
+
+# Data processing
+pandas==2.1.4            # CSV processing
+pydantic==2.5.0          # Data validation
+python-multipart==0.0.6  # File upload support
+
+# Authentication and security
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4             # Password hashing
+python-dotenv==1.0.0               # Environment variables
+
+# HTTP client and utilities
+httpx==0.25.2            # HTTP client for internal requests
+redis==5.0.1             # Caching and session storage
+
+# Development and testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Production servers
+gunicorn==21.2.0
+
+# Monitoring and logging
+structlog==23.2.0
+prometheus-client==0.19.0
