@@ -1,34 +1,37 @@
 """
-Database models for Multi-Tenant Grade Insight
+Scalable Multi-Tenant Database Models
+Optimized for 10 tenants now, 100 tenants later
 
-These models define the structure of our database tables with proper tenant isolation.
-Every table includes a tenant_id field to ensure data separation between schools.
+Key design decisions for this scale:
+- Simple integer PKs for performance
+- UUID tenant_id for security and uniqueness
+- Strategic indexing for fast queries
+- Row-level security patterns
+- Operational simplicity for debugging/maintenance
 """
 
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Index
+from typing import Optional, List
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Index, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import relationship, validates, Session
 from sqlalchemy.sql import func
+import uuid
 
-# Create the base class that all our models will inherit from
 Base = declarative_base()
 
 
 class TenantMixin:
     """
-    Mixin class that adds tenant isolation to any table.
+    Mixin for tenant isolation - optimized for 10-100 tenant scale
     
-    Every table that inherits from this will automatically have:
-    - tenant_id field for data isolation
-    - created_at and updated_at timestamps
-    - validation to ensure tenant_id is always provided
+    Uses UUID for tenant_id (better for 100+ tenants) but keeps simple integer PKs
+    for performance and operational simplicity.
     """
     
-    # The tenant_id links all data to a specific school
-    # This is the KEY to our multi-tenant architecture
-    tenant_id = Column(String(100), nullable=False, index=True)
+    # UUID tenant_id - scales better than strings, more secure
+    tenant_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     
     # Automatic timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -36,136 +39,247 @@ class TenantMixin:
     
     @validates('tenant_id')
     def validate_tenant_id(self, key, tenant_id):
-        """Ensure tenant_id is always provided and not empty"""
-        if not tenant_id or not tenant_id.strip():
-            raise ValueError("tenant_id is required and cannot be empty")
-        return tenant_id.strip().lower()
+        """Ensure tenant_id is always provided"""
+        if not tenant_id:
+            raise ValueError("tenant_id is required")
+        return tenant_id
+
+
+class Tenant(Base):
+    """
+    Tenant registry - central source of truth for all tenants
+    
+    At 100 tenants, you'll want good metadata here for routing,
+    sharding decisions, and operational management.
+    """
+    __tablename__ = "tenants"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Tenant identification
+    tenant_key = Column(String(100), unique=True, nullable=False, index=True)  # human-readable ID
+    name = Column(String(200), nullable=False)
+    subdomain = Column(String(100), unique=True, nullable=True)  # optional subdomain routing
+    
+    # Operational metadata (crucial at 100 tenant scale)
+    status = Column(String(20), default='active', index=True)  # active, suspended, trial
+    tier = Column(String(20), default='standard')  # standard, premium, enterprise
+    max_students = Column(Integer, default=1000)
+    max_storage_mb = Column(Integer, default=1000)
+    
+    # Contact and billing
+    admin_email = Column(String(200), nullable=False)
+    billing_email = Column(String(200), nullable=True)
+    
+    # Sharding info (for future horizontal scaling)
+    shard_key = Column(String(50), nullable=True)  # which database shard
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+    
+    def __repr__(self):
+        return f"<Tenant(key='{self.tenant_key}', name='{self.name}', status='{self.status}')>"
 
 
 class Student(Base, TenantMixin):
     """
-    Student model - represents individual students within a school (tenant).
+    Student model optimized for performance at scale
     
-    Each student belongs to exactly one school (tenant) and can have many grades.
+    Design decisions:
+    - Simple integer PK for fast JOINs
+    - Composite unique constraint on (tenant_id, student_number) for business logic
+    - Strategic indexes for common query patterns
     """
     __tablename__ = "students"
     
-    # Primary key
     id = Column(Integer, primary_key=True, index=True)
     
-    # Student information
-    student_id = Column(String(50), nullable=False)  # School's internal student ID
+    # Student identification
+    student_number = Column(String(50), nullable=False)  # School's student ID
+    email = Column(String(200), nullable=True)  # Not required (some schools don't have student emails)
+    
+    # Basic info
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    email = Column(String(200), nullable=True)
-    grade_level = Column(String(20), nullable=True)  # e.g., "9th", "10th", "Freshman"
+    grade_level = Column(String(20), nullable=True)  # "9", "10", "11", "12", "K", "1st", etc.
     
-    # Optional additional fields
+    # Optional fields
     date_of_birth = Column(DateTime, nullable=True)
     enrollment_date = Column(DateTime, default=datetime.utcnow)
-    is_active = Column(Boolean, default=True)
+    graduation_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
     
-    # Relationship to grades (one student can have many grades)
+    # Parent/guardian info (helpful for notifications)
+    parent_email = Column(String(200), nullable=True)
+    parent_phone = Column(String(20), nullable=True)
+    
+    # Relationships
     grades = relationship("Grade", back_populates="student", cascade="all, delete-orphan")
     
-    # Composite index for fast lookups within a tenant
+    # Constraints and indexes optimized for 100-tenant scale
     __table_args__ = (
-        Index('idx_student_tenant_student_id', 'tenant_id', 'student_id'),
+        # Business rule: student numbers must be unique within tenant
+        UniqueConstraint('tenant_id', 'student_number', name='uq_student_tenant_number'),
+        
+        # Performance indexes for common queries
+        Index('idx_student_tenant_active', 'tenant_id', 'is_active'),
+        Index('idx_student_tenant_grade', 'tenant_id', 'grade_level'),
         Index('idx_student_tenant_name', 'tenant_id', 'last_name', 'first_name'),
+        Index('idx_student_email', 'email'),  # for login lookups
     )
     
     @property
     def full_name(self) -> str:
-        """Return the student's full name"""
         return f"{self.first_name} {self.last_name}"
     
     def __repr__(self):
-        return f"<Student(id={self.id}, tenant={self.tenant_id}, name='{self.full_name}')>"
+        return f"<Student(id={self.id}, tenant={self.tenant_id}, number='{self.student_number}', name='{self.full_name}')>"
 
 
 class Subject(Base, TenantMixin):
     """
-    Subject model - represents academic subjects within a school.
+    Subject/Course model
     
-    Examples: Mathematics, English, Science, History, etc.
-    Each school can define their own subjects.
+    At 100 tenants, you might want to consider a "standard subjects" catalog
+    to reduce duplication, but keeping it simple for now.
     """
     __tablename__ = "subjects"
     
     id = Column(Integer, primary_key=True, index=True)
     
-    # Subject information
-    name = Column(String(100), nullable=False)  # e.g., "Algebra I", "World History"
-    code = Column(String(20), nullable=True)    # e.g., "MATH101", "HIST201"
+    # Subject info
+    name = Column(String(100), nullable=False)
+    code = Column(String(20), nullable=True)  # MATH101, ENG201, etc.
     description = Column(Text, nullable=True)
-    credits = Column(Float, nullable=True)       # Credit hours for the subject
+    credits = Column(Float, nullable=True)
+    department = Column(String(50), nullable=True)  # Math, Science, English, etc.
     
-    # Relationship to grades
+    # Academic info
+    grade_levels = Column(String(100), nullable=True)  # "9,10,11,12" or "K,1,2,3"
+    is_active = Column(Boolean, default=True, index=True)
+    
+    # Relationships
     grades = relationship("Grade", back_populates="subject")
     
-    # Ensure subject names are unique within a tenant
     __table_args__ = (
-        Index('idx_subject_tenant_name', 'tenant_id', 'name'),
+        # Subject names should be unique within tenant
+        UniqueConstraint('tenant_id', 'name', name='uq_subject_tenant_name'),
+        Index('idx_subject_tenant_active', 'tenant_id', 'is_active'),
+        Index('idx_subject_tenant_dept', 'tenant_id', 'department'),
     )
     
     def __repr__(self):
         return f"<Subject(id={self.id}, tenant={self.tenant_id}, name='{self.name}')>"
 
 
+class Assignment(Base, TenantMixin):
+    """
+    Assignment model - represents gradeable work
+    
+    Separated from Grade to handle the case where assignments exist
+    but not all students have grades yet.
+    """
+    __tablename__ = "assignments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign keys
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False, index=True)
+    
+    # Assignment info
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    assignment_type = Column(String(50), nullable=True)  # "exam", "homework", "project", "quiz"
+    
+    # Scoring
+    max_points = Column(Float, nullable=False, default=100.0)
+    weight = Column(Float, nullable=True, default=1.0)  # for weighted grades
+    
+    # Dates
+    assigned_date = Column(DateTime, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    
+    # Flags
+    is_extra_credit = Column(Boolean, default=False)
+    is_published = Column(Boolean, default=True)  # hidden assignments
+    
+    # Relationships
+    subject = relationship("Subject")
+    grades = relationship("Grade", back_populates="assignment", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_assignment_tenant_subject', 'tenant_id', 'subject_id'),
+        Index('idx_assignment_tenant_due', 'tenant_id', 'due_date'),
+        Index('idx_assignment_tenant_type', 'tenant_id', 'assignment_type'),
+    )
+    
+    def __repr__(self):
+        return f"<Assignment(id={self.id}, tenant={self.tenant_id}, name='{self.name}')>"
+
+
 class Grade(Base, TenantMixin):
     """
-    Grade model - represents individual grade entries.
+    Individual grade entries
     
-    This is where the actual grade data lives. Each grade belongs to:
-    - One student
-    - One subject
-    - One tenant (school)
+    This is your high-volume table - optimize indexes carefully.
+    At 100 tenants with 1000 students each, this could be millions of rows.
     """
     __tablename__ = "grades"
     
     id = Column(Integer, primary_key=True, index=True)
     
-    # Foreign keys (relationships to other tables)
+    # Foreign keys
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False)
     
-    # Grade information
-    assignment_name = Column(String(200), nullable=False)  # "Midterm Exam", "Essay #1"
-    grade_value = Column(Float, nullable=False)            # The actual grade (85.5, 92.0, etc.)
-    max_points = Column(Float, nullable=False, default=100.0)  # Maximum possible points
-    assignment_type = Column(String(50), nullable=True)    # "exam", "homework", "project"
+    # Grade data
+    points_earned = Column(Float, nullable=True)  # null = not graded yet
+    points_possible = Column(Float, nullable=False)  # copied from assignment for historical accuracy
     
-    # Dates
-    assignment_date = Column(DateTime, nullable=True)      # When assignment was given
-    due_date = Column(DateTime, nullable=True)             # When it was due
-    graded_date = Column(DateTime, default=datetime.utcnow)  # When it was graded
+    # Metadata
+    graded_by = Column(String(200), nullable=True)  # teacher email/name
+    graded_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
     
-    # Optional fields
-    notes = Column(Text, nullable=True)                    # Teacher's notes
+    # Flags
+    is_late = Column(Boolean, default=False)
+    is_excused = Column(Boolean, default=False)
     is_extra_credit = Column(Boolean, default=False)
     
     # Relationships
     student = relationship("Student", back_populates="grades")
-    subject = relationship("Subject", back_populates="grades")
+    assignment = relationship("Assignment", back_populates="grades")
     
-    # Indexes for fast queries
+    # Critical indexes for performance at scale
     __table_args__ = (
+        # Unique constraint: one grade per student per assignment
+        UniqueConstraint('tenant_id', 'student_id', 'assignment_id', name='uq_grade_student_assignment'),
+        
+        # Performance indexes for common queries
         Index('idx_grade_tenant_student', 'tenant_id', 'student_id'),
-        Index('idx_grade_tenant_subject', 'tenant_id', 'subject_id'),
-        Index('idx_grade_tenant_date', 'tenant_id', 'graded_date'),
+        Index('idx_grade_tenant_assignment', 'tenant_id', 'assignment_id'),
+        Index('idx_grade_tenant_graded', 'tenant_id', 'graded_at'),
+        
+        # Composite index for gradebook queries
+        Index('idx_grade_student_assignment', 'student_id', 'assignment_id'),
     )
     
     @property
-    def percentage(self) -> float:
-        """Calculate the grade as a percentage"""
-        if self.max_points == 0:
-            return 0.0
-        return (self.grade_value / self.max_points) * 100
+    def percentage(self) -> Optional[float]:
+        """Calculate grade percentage"""
+        if self.points_earned is None or self.points_possible == 0:
+            return None
+        return (self.points_earned / self.points_possible) * 100
     
     @property
-    def letter_grade(self) -> str:
-        """Convert percentage to letter grade"""
+    def letter_grade(self) -> Optional[str]:
+        """Convert to letter grade"""
         pct = self.percentage
+        if pct is None:
+            return None
+        
         if pct >= 97: return "A+"
         elif pct >= 93: return "A"
         elif pct >= 90: return "A-"
@@ -181,127 +295,111 @@ class Grade(Base, TenantMixin):
         else: return "F"
     
     def __repr__(self):
-        return f"<Grade(id={self.id}, tenant={self.tenant_id}, student_id={self.student_id}, grade={self.grade_value})>"
+        return f"<Grade(id={self.id}, student_id={self.student_id}, assignment_id={self.assignment_id}, earned={self.points_earned})>"
 
 
-class TenantRegistry(Base):
+# Tenant-aware utilities for safe operations
+
+class TenantAwareQuery:
     """
-    Tenant Registry model - tracks which tenants exist and their metadata.
+    Query helper that automatically adds tenant filtering
     
-    This is a special table that lives in its own database and helps us
-    manage all the schools (tenants) in our system.
-    
-    NOTE: This table does NOT have tenant_id because it manages tenants themselves!
+    Critical for preventing cross-tenant data leaks at scale
     """
-    __tablename__ = "tenant_registry"
     
-    id = Column(Integer, primary_key=True, index=True)
+    def __init__(self, session: Session, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
     
-    # Tenant identification
-    tenant_id = Column(String(100), unique=True, nullable=False, index=True)
-    tenant_name = Column(String(200), nullable=False)  # "Lincoln High School"
+    def query(self, model_class):
+        """Create a query with automatic tenant filtering"""
+        query = self.session.query(model_class)
+        if hasattr(model_class, 'tenant_id'):
+            query = query.filter(model_class.tenant_id == self.tenant_id)
+        return query
     
-    # Routing information
-    subdomain = Column(String(100), unique=True, nullable=False)  # "lincoln-high"
-    shard_number = Column(Integer, nullable=False)  # Which database shard to use
+    def get_student(self, student_id: int) -> Optional[Student]:
+        """Get student by ID within tenant"""
+        return self.query(Student).filter(Student.id == student_id).first()
     
-    # Tenant metadata
-    contact_email = Column(String(200), nullable=True)
-    phone = Column(String(20), nullable=True)
-    address = Column(Text, nullable=True)
+    def get_student_by_number(self, student_number: str) -> Optional[Student]:
+        """Get student by school ID within tenant"""
+        return self.query(Student).filter(Student.student_number == student_number).first()
     
-    # Status and configuration
-    is_active = Column(Boolean, default=True)
-    max_students = Column(Integer, default=5000)  # Limit for this tenant
-    subscription_tier = Column(String(50), default="basic")  # "basic", "premium", "enterprise"
+    def get_active_students(self) -> List[Student]:
+        """Get all active students in tenant"""
+        return self.query(Student).filter(Student.is_active == True).all()
     
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    def __repr__(self):
-        return f"<TenantRegistry(tenant_id='{self.tenant_id}', name='{self.tenant_name}', shard={self.shard_number})>"
+    def get_grades_for_student(self, student_id: int) -> List[Grade]:
+        """Get all grades for a student"""
+        return self.query(Grade).filter(Grade.student_id == student_id).all()
 
 
-# Utility functions for working with models
-
-def get_tenant_aware_query(query, tenant_id: str):
+def validate_tenant_access(obj, expected_tenant_id: uuid.UUID):
     """
-    Add tenant filtering to any query automatically.
+    Validate that an object belongs to the expected tenant
     
-    This is a helper function that ensures we always filter by tenant_id.
-    It's a safety measure to prevent accidentally accessing other tenants' data.
-    
-    Args:
-        query: SQLAlchemy query object
-        tenant_id: The tenant to filter by
-        
-    Returns:
-        Query filtered by tenant_id
+    Critical safety check - always call this before returning data
     """
-    # Get the model class from the query
-    model_class = query.column_descriptions[0]['type']
-    
-    # Only add tenant filter if the model has tenant_id
-    if hasattr(model_class, 'tenant_id'):
-        return query.filter(model_class.tenant_id == tenant_id)
-    
-    return query
+    if hasattr(obj, 'tenant_id') and obj.tenant_id != expected_tenant_id:
+        raise ValueError(f"Cross-tenant access violation: object belongs to {obj.tenant_id}, expected {expected_tenant_id}")
 
 
-def validate_tenant_access(obj, tenant_id: str):
+def create_tenant_aware_session(session: Session, tenant_id: uuid.UUID) -> TenantAwareQuery:
     """
-    Validate that a database object belongs to the specified tenant.
+    Factory function to create tenant-aware query helper
     
-    This prevents accidentally returning data from the wrong tenant.
-    
-    Args:
-        obj: Database object to check
-        tenant_id: Expected tenant ID
-        
-    Raises:
-        ValueError: If the object doesn't belong to the tenant
+    Use this in your API endpoints to ensure tenant isolation
     """
-    if hasattr(obj, 'tenant_id') and obj.tenant_id != tenant_id:
-        raise ValueError(f"Object belongs to tenant '{obj.tenant_id}', not '{tenant_id}'")
+    return TenantAwareQuery(session, tenant_id)
 
 
-# Example usage and testing
+# Performance monitoring helpers for 100-tenant scale
+
+class TenantMetrics:
+    """
+    Helper class for monitoring tenant resource usage
+    
+    Important at 100-tenant scale for identifying problematic tenants
+    """
+    
+    def __init__(self, session: Session):
+        self.session = session
+    
+    def get_tenant_stats(self, tenant_id: uuid.UUID) -> dict:
+        """Get basic usage stats for a tenant"""
+        return {
+            'students': self.session.query(Student).filter(Student.tenant_id == tenant_id).count(),
+            'subjects': self.session.query(Subject).filter(Subject.tenant_id == tenant_id).count(),
+            'assignments': self.session.query(Assignment).filter(Assignment.tenant_id == tenant_id).count(),
+            'grades': self.session.query(Grade).filter(Grade.tenant_id == tenant_id).count(),
+        }
+    
+    def get_largest_tenants(self, limit: int = 10) -> List[dict]:
+        """Find tenants with most data (for capacity planning)"""
+        # This would need a more complex query in practice
+        pass
+
+
+# Example usage patterns for this scale
+
 if __name__ == "__main__":
-    # This shows how the models would be used
-    print("Multi-Tenant Database Models")
-    print("=" * 40)
+    print("Multi-Tenant Models - Optimized for 10→100 tenants")
+    print("="*50)
     
-    # Example tenant
-    tenant_id = "lincoln-high"
+    # Example: Safe tenant-aware operations
+    tenant_id = uuid.uuid4()
     
-    # Create sample objects (not actually saved to database)
-    student = Student(
-        tenant_id=tenant_id,
-        student_id="12345",
-        first_name="John",
-        last_name="Doe",
-        email="john.doe@student.lincoln.edu",
-        grade_level="11th"
-    )
+    # This is how you'd use it in your API endpoints
+    # session = get_db_session()
+    # tenant_query = create_tenant_aware_session(session, tenant_id)
+    # 
+    # # Safe operations - automatically tenant-filtered
+    # students = tenant_query.get_active_students()
+    # student = tenant_query.get_student_by_number("12345")
     
-    subject = Subject(
-        tenant_id=tenant_id,
-        name="Algebra II",
-        code="MATH201",
-        credits=1.0
-    )
-    
-    grade = Grade(
-        tenant_id=tenant_id,
-        assignment_name="Midterm Exam",
-        grade_value=87.5,
-        max_points=100.0,
-        assignment_type="exam"
-    )
-    
-    print(f"Student: {student}")
-    print(f"Subject: {subject}")
-    print(f"Grade: {grade}")
-    print(f"Grade percentage: {grade.percentage:.1f}%")
-    print(f"Letter grade: {grade.letter_grade}")
+    print("✓ Models optimized for operational simplicity")
+    print("✓ Strategic indexing for performance")
+    print("✓ Tenant-aware query helpers for safety")
+    print("✓ UUID tenant IDs for security")
+    print("✓ Monitoring hooks for scale management")
