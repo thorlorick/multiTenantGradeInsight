@@ -1,1 +1,176 @@
-# not sure what this is
+version: '3.8'
+
+services:
+  # PostgreSQL database shards
+  postgres-shard1:
+    image: postgres:15
+    container_name: gradeinsight-shard1
+    environment:
+      POSTGRES_DB: gradeinsight_shard1
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_shard1_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gradeuser -d gradeinsight_shard1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-shard2:
+    image: postgres:15
+    container_name: gradeinsight-shard2
+    environment:
+      POSTGRES_DB: gradeinsight_shard2
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_shard2_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gradeuser -d gradeinsight_shard2"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-shard3:
+    image: postgres:15
+    container_name: gradeinsight-shard3
+    environment:
+      POSTGRES_DB: gradeinsight_shard3
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_shard3_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gradeuser -d gradeinsight_shard3"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Tenant Registry Database
+  postgres-registry:
+    image: postgres:15
+    container_name: gradeinsight-registry
+    environment:
+      POSTGRES_DB: tenant_registry
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_registry_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gradeuser -d tenant_registry"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: gradeinsight-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gradeinsight-app
+    environment:
+      # Database connections
+      DATABASE_SHARD_1_URL: "postgresql://gradeuser:gradepass@postgres-shard1:5432/gradeinsight_shard1"
+      DATABASE_SHARD_2_URL: "postgresql://gradeuser:gradepass@postgres-shard2:5432/gradeinsight_shard2"
+      DATABASE_SHARD_3_URL: "postgresql://gradeuser:gradepass@postgres-shard3:5432/gradeinsight_shard3"
+      TENANT_REGISTRY_URL: "postgresql://gradeuser:gradepass@postgres-registry:5432/tenant_registry"
+      REDIS_URL: "redis://redis:6379/0"
+      
+      # Application settings
+      DEBUG: "true"
+      SECRET_KEY: "dev-secret-key-change-in-production"
+      JWT_SECRET_KEY: "jwt-dev-secret-key"
+      
+      # CORS settings for development
+      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000"
+      CORS_ENABLED: "true"
+      
+      # Logging
+      LOG_LEVEL: "INFO"
+      
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
+        condition: service_healthy
+      postgres-shard3:
+        condition: service_healthy
+      postgres-registry:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # pgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: gradeinsight-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gradeinsight.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres-shard1
+      - postgres-shard2
+      - postgres-shard3
+      - postgres-registry
+    profiles:
+      - tools
+
+volumes:
+  postgres_shard1_data:
+    driver: local
+  postgres_shard2_data:
+    driver: local
+  postgres_shard3_data:
+    driver: local
+  postgres_registry_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
