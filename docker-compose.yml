@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Single PostgreSQL database for multi-tenant architecture
+  # PostgreSQL database for multi-tenant architecture (shard 1 for now)
   postgres:
     image: postgres:15
     container_name: gradeinsight-db
@@ -40,23 +40,18 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: gradeinsight-app
+    env_file:
+      - .env
     environment:
-      # Single database connection
-      DATABASE_URL: "postgresql://gradeuser:gradepass@postgres:5432/gradeinsight"
-      REDIS_URL: "redis://redis:6379/0"
-      
-      # Application settings
-      DEBUG: "true"
-      SECRET_KEY: "dev-secret-key-change-in-production"
-      JWT_SECRET_KEY: "jwt-dev-secret-key"
-      
-      # CORS settings for development
-      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000"
-      CORS_ENABLED: "true"
-      
-      # Logging
-      LOG_LEVEL: "INFO"
-      
+      DATABASE_SHARD_1_URL: ${DATABASE_SHARD_1_URL}
+      TENANT_REGISTRY_URL: ${TENANT_REGISTRY_URL}
+      REDIS_URL: ${REDIS_URL}
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ALLOW_ORIGINS: ${ALLOW_ORIGINS}
+      CORS_ENABLED: ${CORS_ENABLED}
+      LOG_LEVEL: ${LOG_LEVEL}
     ports:
       - "8000:8000"
     volumes:
@@ -73,7 +68,7 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # pgAdmin for database management (optional)
+  # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: gradeinsight-pgadmin
@@ -101,3 +96,4 @@ volumes:
 networks:
   default:
     driver: bridge
+
