@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment Search with Tags - GradeInsight</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .search-section {
+            padding: 30px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-group {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 2px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .tags-section {
+            padding: 20px 30px;
+            background: #f9fafb;
+        }
+
+        .tags-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .tag-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .tag-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .tag-card.selected {
+            border-color: #4f46e5;
+            background: #f0f4ff;
+        }
+
+        .tag-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .tag-count {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .results-section {
+            padding: 30px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-count {
+            font-size: 1.1rem;
+            color: #6b7280;
+        }
+
+        .assignment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .assignment-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .assignment-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .assignment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .assignment-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 5px;
+        }
+
+        .assignment-meta {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .assignment-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .assignment-tag {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .no-results svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .management-section {
+            padding: 30px;
+            border-top: 1px solid #e5e7eb;
+            background: #fafafa;
+        }
+
+        .management-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .search-row {
+                flex-direction: column;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .assignment-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏷️ Assignment Search</h1>
+            <p>Search assignments by name, description, or tags</p>
+        </div>
+
+        <div class="search-section">
+            <div class="search-row">
+                <div class="search-group">
+                    <label for="textSearch">Search by Name/Description</label>
+                    <input type="text" id="textSearch" class="search-input" placeholder="Enter assignment name or description...">
+                </div>
+                <div class="search-group">
+                    <label for="tagSearch">Search by Tag Names</label>
+                    <input type="text" id="tagSearch" class="search-input" placeholder="Enter tag names (comma-separated)...">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="searchAssignments()">🔍 Search Assignments</button>
+                <button class="btn btn-secondary" onclick="clearSearch()">🗑️ Clear Search</button>
+                <button class="btn btn-secondary" onclick="loadAllTags()">🏷️ Load All Tags</button>
+            </div>
+        </div>
+
+        <div class="tags-section">
+            <h3>📌 Available Tags (Click to filter)</h3>
+            <div id="tagsGrid" class="tags-grid">
+                <!-- Tags will be loaded here -->
+            </div>
+        </div>
+
+        <div class="results-section">
+            <div class="results-header">
+                <h3>📋 Search Results</h3>
+                <div id="resultsCount" class="results-count">Ready to search...</div>
+            </div>
+            <div id="assignmentGrid" class="assignment-grid">
+                <!-- Results will appear here -->
+            </div>
+        </div>
+
+        <div class="management-section">
+            <h3>🛠️ Tag Management</h3>
+            <div class="management-buttons">
+                <button class="btn btn-secondary" onclick="autoTagAssignments()">🤖 Auto-Tag Assignments</button>
+                <button class="btn btn-secondary" onclick="createNewTag()">➕ Create New Tag</button>
+                <button class="btn btn-secondary" onclick="manageAllTags()">⚙️ Manage All Tags</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allTags = [];
+        let selectedTagIds = [];
+
+        // Load all tags on page load
+        window.addEventListener('load', function() {
+            loadAllTags();
+            loadAllAssignments();
+        });
+
+        async function loadAllTags() {
+            try {
+                const response = await fetch('/api/tags');
+                const data = await response.json();
+                allTags = data.tags || [];
+                renderTags();
+            } catch (error) {
+                console.error('Error loading tags:', error);
+            }
+        }
+
+        function renderTags() {
+            const tagsGrid = document.getElementById('tagsGrid');
+            if (allTags.length === 0) {
+                tagsGrid.innerHTML = '<p style="text-align: center; color: #6b7280;">No tags available. Create some tags or use auto-tagging!</p>';
+                return;
+            }
+
+            tagsGrid.innerHTML = allTags.map(tag => `
+                <div class="tag-card ${selectedTagIds.includes(tag.id) ? 'selected' : ''}" 
+                     onclick="toggleTagSelection(${tag.id})">
+                    <div class="tag-name" style="color: ${tag.color}">${tag.name}</div>
+                    <div class="tag-count">${tag.assignment_count} assignments</div>
+                    ${tag.description ? `<div style="font-size: 0.8rem; margin-top: 5px; color: #9ca3af;">${tag.description}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function toggleTagSelection(tagId) {
+            if (selectedTagIds.includes(tagId)) {
+                selectedTagIds = selectedTagIds.filter(id => id !== tagId);
+            } else {
+                selectedTagIds.push(tagId);
+            }
+            renderTags();
+            
+            // Auto-search when tags are selected
+            if (selectedTagIds.length > 0) {
+                searchAssignments();
+            }
+        }
+
+        async function searchAssignments() {
+            const textQuery = document.getElementById('textSearch').value;
+            const tagQuery = document.getElementById('tagSearch').value;
+            
+            // Show loading
+            document.getElementById('assignmentGrid').innerHTML = '<div class="loading">🔍 Searching assignments...</div>';
+            document.getElementById('resultsCount').textContent = 'Searching...';
+
+            try {
+                let url = '/api/search-assignments?';
+                const params = new URLSearchParams();
+                
+                if (textQuery.trim()) {
+                    params.append('query', textQuery.trim());
+                }
+                
+                if (tagQuery.trim()) {
+                    // Search by tag names
+                    const response = await fetch(`/api/search-by-tags?tag_names=${encodeURIComponent(tagQuery.trim())}`);
+                    const data = await response.json();
+                    renderAssignments(data.assignments, data.total_found);
+                    return;
+                } else if (selectedTagIds.length > 0) {
+                    params.append('tag_ids', selectedTagIds.join(','));
+                }
+                
+                url += params.toString();
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                renderAssignments(data.assignments, data.total_found);
+                
+            } catch (error) {
+                console.error('Error searching assignments:', error);
+                document.getElementById('assignmentGrid').innerHTML = '<div class="no-results">❌ Error searching assignments. Please try again.</div>';
+                document.getElementById('resultsCount').textContent = 'Error occurred';
+            }
+        }
+
+        async function loadAllAssignments() {
+            try {
+                const response = await fetch('/api/assignments');
+                const data = await response.json();
+                renderAssignments(data.assignments, data.assignments.length);
+            } catch (error) {
+                console.error('Error loading assignments:', error);
+            }
+        }
+
+        function renderAssignments(assignments, totalCount) {
+            const assignmentGrid = document.getElementById('assignmentGrid');
+            const resultsCount = document.getElementById('resultsCount');
+            
+            resultsCount.textContent = `Found ${totalCount} assignment${totalCount !== 1 ? 's' : ''}`;
+            
+            if (assignments.length === 0) {
+                assignmentGrid.innerHTML = `
+                    <div class="no-results">
+                        <svg fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                        <h3>No assignments found</h3>
+                        <p>Try adjusting your search criteria or create some assignments first.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            assignmentGrid.innerHTML = assignments.map(assignment => `
+                <div class="assignment-card">
+                    <div class="assignment-header">
+                        <div>
+                            <div class="assignment-name">${assignment.name}</div>
+                            <div class="assignment-meta">
+                                📅 ${assignment.date || 'No date'} | 
+                                🎯 ${assignment.max_points} pts | 
+                                👥 ${assignment.student_count} students
+                            </div>
+                            ${assignment.description ? `<div style="margin-top: 8px; color: #6b7280; font-size: 0.9rem;">${assignment.description}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="assignment-tags">
+                        ${assignment.tags.map(tag => `
+                            <span class="assignment-tag" style="background-color: ${tag.color}">
+                                ${tag.name}
+                            </span>
+                        `).join('')}
+                        ${assignment.tags.length === 0 ? '<span style="color: #9ca3af; font-style: italic;">No tags</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearSearch() {
+            document.getElementById('textSearch').value = '';
+            document.getElementById('tagSearch').value = '';
+            selectedTagIds = [];
+            renderTags();
+            loadAllAssignments();
+        }
+
+        async function autoTagAssignments() {
+            if (!confirm('This will automatically create tags based on assignment names and assign them. Continue?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auto-tag-assignments', { method: 'POST' });
+                const data = await response.json();
+                
+                alert(`Auto-tagging completed!\n\nCreated ${data.created_tags.length} new tags: ${data.created_tags.join(', ')}\nUpdated ${data.total_assignments_updated} assignments`);
+                
+                // Reload tags and assignments
+                await loadAllTags();
+                await loadAllAssignments();
+                
+            } catch (error) {
+                console.error('Error in auto-tagging:', error);
+                alert('Error in auto-tagging. Please try again.');
+            }
+        }
+
+        function createNewTag() {
+            const tagName = prompt('Enter tag name:');
+            if (!tagName) return;
+            
+            const tagColor = prompt('Enter tag color (hex code, e.g., #FF5733):', '#3B82F6');
+            const tagDescription = prompt('Enter tag description (optional):');
+            
+            createTag(tagName, tagColor, tagDescription);
+        }
+
+        async function createTag(name, color, description) {
+            try {
+                const response = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        color: color || '#3B82F6',
+                        description: description || null
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Tag created successfully!');
+                    await loadAllTags();
+                } else {
+                    const error = await response.json();
+                    alert(`Error creating tag: ${error.detail}`);
+                }
+                
+            } catch (error) {
+                console.error('Error creating tag:', error);
+                alert('Error creating tag. Please try again.');
+            }
+        }
+
+        function manageAllTags() {
+            alert('Tag management interface would open here. You can implement a modal or separate page for full CRUD operations on tags.');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Insight - Student Portal</title>
+    <link rel="stylesheet" href="/static/css/compact.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Student Portal</h1>
+            <p>Enter your email to view your grades</p>
+        </div>
+        
+        <div class="main-content">
+            
+            <div class="search-section">
+                <h2 class="search-title">Check Your Grades</h2>
+                <p class="search-subtitle">Enter your email address to view your current grades and assignments</p>
+                
+                <div class="search-form">
+                    <input 
+                        type="email" 
+                        id="emailInput" 
+                        class="email-input search-input" 
+                        placeholder="Enter your email address..."
+                        autocomplete="email"
+                    >
+                    <button id="searchBtn" class="search-btn">View Grades</button>
+                    <button id="clearBtn" class="clear-search" style="display: none;">Clear</button>
+                </div>
+                <div id="searchStats" class="search-stats" style="display: none; text-align: center; margin-top: 10px;"></div>
+            </div>
+            
+            <div id="resultsSection" class="results-section">
+                <!-- Student results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+<script src="/static/js/shared-utils.js"></script> 
+    
+</body>
+</html>
