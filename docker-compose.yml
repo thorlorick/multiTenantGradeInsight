@@ -143,6 +143,12 @@ volumes:
   postgres_registry_data:
   redis_data:
 
+services:
+  gradeinsight-app:
+    env_file:
+      - .env
+
+
 networks:
   gradeinsight-network:
     driver: bridge
