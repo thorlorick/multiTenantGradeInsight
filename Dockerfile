@@ -37,6 +37,8 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set ownership of app directory
 RUN chown -R appuser:appuser /app
 
+RUN pip install pydantic-settings
+
 # Switch to non-root user
 USER appuser
 
