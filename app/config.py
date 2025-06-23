@@ -6,7 +6,7 @@ configuration values throughout the application.
 """
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from pydantic import validator, field_validator
 from pydantic_settings import BaseSettings
 
