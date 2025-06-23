@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     log_format: str = "json"
     
     # CORS (Cross-Origin Resource Sharing) for web browsers
-    allow_origins: List[str] = [
+    allow_origins: Union[str, List[str]] = [
         "http://localhost:3000",
         "http://localhost:3001", 
         "http://localhost:8080",
