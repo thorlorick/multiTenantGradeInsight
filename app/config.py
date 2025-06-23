@@ -78,11 +78,10 @@ class Settings(BaseSettings):
 
     # Add this validator to your config.py file, right after the parse_file_types validator
 
-    @validator('allow_origins', pre=True)
+   @validator('allow_origins', pre=True)
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
-        # Split by comma and strip whitespace from each origin
             return [origin.strip() for origin in v.split(',')]
         return v
 
