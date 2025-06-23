@@ -7,7 +7,8 @@ configuration values throughout the application.
 
 import os
 from typing import Dict, List, Optional
-from pydantic import BaseSettings, validator
+from pydantic import validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
