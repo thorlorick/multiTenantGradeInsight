@@ -7,8 +7,8 @@ configuration values throughout the application.
 
 import os
 from typing import Dict, List, Optional
-from pydantic_settings import BaseSettings
-from pydantic import validator
+from pydantic import BaseModel, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     Pydantic automatically loads values from environment variables
     and validates them according to the type hints.
     """
+    
+    # Configuration for Pydantic v2
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
     
     # Application Info
     app_name: str = "Multi-Tenant Grade Insight"
@@ -63,14 +71,16 @@ class Settings(BaseSettings):
     allow_origins: List[str] = ["http://localhost:3000"]
     cors_enabled: bool = True
     
-    @validator('allowed_file_types', pre=True)
+    @field_validator('allowed_file_types', mode='before')
+    @classmethod
     def parse_file_types(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
             return [ext.strip() for ext in v.split(',')]
         return v
     
-    @validator('allow_origins', pre=True)
+    @field_validator('allow_origins', mode='before')
+    @classmethod
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
@@ -98,13 +108,6 @@ class Settings(BaseSettings):
     def max_file_size_bytes(self) -> int:
         """Convert MB to bytes for file size validation"""
         return self.max_file_size_mb * 1024 * 1024
-    
-    class Config:
-        # Tell Pydantic to load from .env file
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        # Make field names case insensitive
-        case_sensitive = False
 
 
 # Create a global settings instance
