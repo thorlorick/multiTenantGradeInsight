@@ -28,6 +28,12 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 - Filter by subject, term, or custom tags
 - Access through a school-branded portal (e.g., `yourschool.gradeinsight.com`)
 
+### 🎓 For Students
+- View your current grades and assignment feedback
+- Track your progress across subjects, terms, or tags
+- Stay updated with new marks as teachers upload them
+- Access through your school’s personalized portal (e.g., `yourschool.gradeinsight.com`)
+
 ### 🏫 For Schools
 - Host multiple schools in one deployment with full tenant isolation
 - Lightweight, scalable, and easy to self-host
