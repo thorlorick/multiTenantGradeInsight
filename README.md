@@ -116,9 +116,9 @@ Grade Insight expects a structured CSV format:
 | 4+  | Student data rows                            |
 
 **Required student columns:**
-- `student_email` (used as unique ID)
-- `first_name`
 - `last_name`
+- `first_name`
+- `student_email` (used as unique ID)
 
 **Example:**
 
