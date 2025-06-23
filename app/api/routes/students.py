@@ -47,4 +47,4 @@ async def get_student(student_id: int, tenant_id: str = Depends(get_tenant_id)):
         if s["id"] == student_id and s["tenant_id"] == tenant_id:
             return s
     raise HTTPException(404, "Student not found")
-#empty
+
