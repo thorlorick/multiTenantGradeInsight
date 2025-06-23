@@ -5,25 +5,27 @@ services:
     container_name: gradeinsight-app
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       # Application Settings
-      SECRET_KEY: ${SECRET_KEY}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      DEBUG: ${DEBUG:-false}
+      SECRET_KEY: your-secret-key-here-change-in-production
+      JWT_SECRET_KEY: your-jwt-secret-key-here-change-in-production
+      DEBUG: "false"
       
       # Database Shards - PostgreSQL connections
-      DATABASE_SHARD_1_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-shard-1:5432/gradeinsight_shard1
-      DATABASE_SHARD_2_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-shard-2:5432/gradeinsight_shard2
-      DATABASE_SHARD_3_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-shard-3:5432/gradeinsight_shard3
+      DATABASE_SHARD_1_URL: postgresql+asyncpg://gradeuser:gradepass@postgres-shard-1:5432/gradeinsight_shard1
+      DATABASE_SHARD_2_URL: postgresql+asyncpg://gradeuser:gradepass@postgres-shard-2:5432/gradeinsight_shard2
+      DATABASE_SHARD_3_URL: postgresql+asyncpg://gradeuser:gradepass@postgres-shard-3:5432/gradeinsight_shard3
       
       # Tenant Registry Database
-      TENANT_REGISTRY_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-registry:5432/tenant_registry
+      TENANT_REGISTRY_URL: postgresql+asyncpg://gradeuser:gradepass@postgres-registry:5432/tenant_registry
       
       # Redis for caching
       REDIS_URL: redis://redis:6379/0
       
       # CORS settings
-      ALLOW_ORIGINS: ${ALLOW_ORIGINS}
+      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,https://your-domain.com"
     depends_on:
       - postgres-shard-1
       - postgres-shard-2
@@ -43,8 +45,8 @@ services:
     container_name: postgres-shard-1
     environment:
       POSTGRES_DB: gradeinsight_shard1
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
     volumes:
       - postgres_shard1_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -60,8 +62,8 @@ services:
     container_name: postgres-shard-2
     environment:
       POSTGRES_DB: gradeinsight_shard2
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
     volumes:
       - postgres_shard2_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -77,8 +79,8 @@ services:
     container_name: postgres-shard-3
     environment:
       POSTGRES_DB: gradeinsight_shard3
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
     volumes:
       - postgres_shard3_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -94,8 +96,8 @@ services:
     container_name: postgres-registry
     environment:
       POSTGRES_DB: tenant_registry
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
     volumes:
       - postgres_registry_data:/var/lib/postgresql/data
       - ./init-registry.sql:/docker-entrypoint-initdb.d/init-registry.sql
@@ -142,12 +144,6 @@ volumes:
   postgres_shard3_data:
   postgres_registry_data:
   redis_data:
-
-services:
-  gradeinsight-app:
-    env_file:
-      - .env
-
 
 networks:
   gradeinsight-network:
