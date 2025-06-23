@@ -130,6 +130,15 @@ Smith,Alice,alice.smith@example.com,85,90,78
 Johnson,Bob,bob.johnson@example.com,88,92,81
 Brown,Charlie,charlie.brown@example.com,92,85,89
 ```
+---
+
+## Data Processing Pipeline
+
+1. **Upload** - Teacher uploads CSV file through web interface
+2. **Parse** - System automatically parses and validates data structure
+3. **Clean** - Remove empty columns and normalize data formats
+4. **Process** - Insert new records or update existing ones
+5. **Report** - Display upload summary with detailed status
 
 ---
 
