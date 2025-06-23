@@ -79,11 +79,11 @@ class Settings(BaseSettings):
     # Add this validator to your config.py file, right after the parse_file_types validator
 
    @validator('allow_origins', pre=True)
-    def parse_origins(cls, v):
-        """Convert comma-separated string to list if needed"""
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
-        return v
+   def parse_origins(cls, v):
+       """Convert comma-separated string to list if needed"""
+       if isinstance(v, str):
+           return [origin.strip() for origin in v.split(',')]
+       return v
 
     @property
     def database_shard_urls(self) -> Dict[int, str]:
