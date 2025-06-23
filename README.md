@@ -5,6 +5,14 @@
 The multi-tenant architecture allows multiple schools to use the same application independently, with complete data isolation between schools.
 
 ---
+✨ Features
+- 🧑🏫 Flexible CSV Upload - Use Grade Insight template, Google Classroom exports or any .csv that follows our structure (see below)
+- 🔍 Automatic Data Cleaning - Smart parsing and normalization of grade data
+- 📈 Student/Parent Dashboard - Clean, simple progress visualization
+- 🔄 Smart Updates - Intelligent duplicate detection and data merging
+- 🐳 Docker Ready - Containerized FastAPI application for easy deployment
+- ⚡ Fast Performance - Built on FastAPI for high-performance 
+- 📱 Responsive Design - Works seamlessly on desktop and mobile devices
 
 ## What It Does
 
@@ -43,7 +51,7 @@ cp .env.example .env  # edit with your own credentials and secrets
 docker compose up --build
 ```
 
-The app will be available at `http://localhost`.
+The app will be available at `http://len.uiscan.com`.
 
 ---
 
@@ -98,18 +106,22 @@ Grade Insight expects a standardized CSV format for uploads:
 | 4+  | Student data rows                            |
 
 **Required student columns:**
-- `student_number` (used as unique ID)
+- `student_email` (used as unique ID)
 - `first_name`
 - `last_name`
 
 **Example:**
 
 ```
-student_number,first_name,last_name,Test 1,Essay
-,date,date,2024-09-12,2024-09-20
-,max,max,20,30
-12345,Jane,Doe,18,27
-67890,John,Smith,15,22
+### CSV Format
+
+last_name,first_name,email,Assignment 1,Assignment 2,Assignment 3
+DATE,-,-,2025-06-01,2025-06-03,2025-06-05
+POINTS,-,-,100,100,100
+Smith,Alice,alice.smith@example.com,85,90,78
+Johnson,Bob,bob.johnson@example.com,88,92,81
+Brown,Charlie,charlie.brown@example.com,92,85,89
+
 ```
 
 ---
@@ -123,18 +135,17 @@ student_number,first_name,last_name,Test 1,Essay
 
 ---
 
-## Deployment Notes
+<!-- ## Deployment Notes
 
 - Designed to run behind a reverse proxy (e.g., NGINX, Traefik)
 - TLS certificates can be added with Let’s Encrypt or custom certs
 - Email and authentication systems can be integrated later (roadmap)
-
+-->
 ---
 
 ## Roadmap
 
 - [ ] Google Classroom integration (no-CSV mode)
-- [ ] Grade trends and analytics for parents
 - [ ] Admin dashboard for school-wide reporting
 - [ ] User authentication and role management
 
