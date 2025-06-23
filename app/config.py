@@ -7,8 +7,9 @@ configuration values throughout the application.
 
 import os
 from typing import Dict, List, Optional
-from pydantic import validator
+from pydantic import validator, field_validator
 from pydantic_settings import BaseSettings
+
 
 
 class Settings(BaseSettings):
@@ -70,14 +71,8 @@ class Settings(BaseSettings):
     ]
     cors_enabled: bool = True
 
-    @validator('allowed_file_types', pre=True)
-    def parse_file_types(cls, v):
-        """Convert comma-separated string to list if needed"""
-        if isinstance(v, str):
-            return [ext.strip() for ext in v.split(',')]
-        return v
-    
-    @validator('allow_origins', pre=True)
+    @field_validator('allow_origins', mode='before')
+    @classmethod
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
