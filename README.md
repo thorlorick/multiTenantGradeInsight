@@ -5,14 +5,18 @@
 The multi-tenant architecture allows multiple schools to use the same application independently, with complete data isolation between schools.
 
 ---
-✨ Features
-- 🧑🏫 Flexible CSV Upload - Use Grade Insight template, Google Classroom exports or any .csv that follows our structure (see below)
-- 🔍 Automatic Data Cleaning - Smart parsing and normalization of grade data
-- 📈 Student/Parent Dashboard - Clean, simple progress visualization
-- 🔄 Smart Updates - Intelligent duplicate detection and data merging
-- 🐳 Docker Ready - Containerized FastAPI application for easy deployment
-- ⚡ Fast Performance - Built on FastAPI for high-performance 
-- 📱 Responsive Design - Works seamlessly on desktop and mobile devices
+
+## ✨ Features
+
+- 🧑🏫 Flexible CSV Upload — Use Grade Insight’s template, Google Classroom exports, or any `.csv` that follows our format
+- 🔍 Automatic Data Cleaning — Smart parsing and normalization of grade data
+- 📈 Student/Parent Dashboard — Clean, simple progress visualization
+- 🔄 Smart Updates — Intelligent duplicate detection and data merging
+- 🐳 Docker Ready — Containerized FastAPI application for easy deployment
+- ⚡ Fast Performance — Built on FastAPI for speed and scalability
+- 📱 Responsive Design — Works seamlessly on desktop and mobile
+
+---
 
 ## What It Does
 
@@ -20,7 +24,7 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 - Upload CSV files with student grades and assignments
 - Use tags to organize classes, subjects, or terms
 - Each teacher’s data is isolated within their school
-- No training or setup required—just upload and go
+- No training or setup required — just upload and go
 
 ### 👪 For Parents
 - See real-time updates on student progress
@@ -53,11 +57,11 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 ```bash
 git clone https://github.com/your-org/multiTenantGradeInsight.git
 cd multiTenantGradeInsight
-cp .env.example .env  # edit with your own credentials and secrets
+cp .env.example .env  # Edit with your credentials and secrets
 docker compose up --build
 ```
 
-The app will be available at `http://len.uiscan.com`.
+The app will be available at `http://localhost` (or your domain, e.g., `http://len.uiscan.com`).
 
 ---
 
@@ -83,9 +87,9 @@ multiTenantGradeInsight/
 
 ## Environment Variables
 
-Make sure your `.env` includes:
+Example `.env` file:
 
-```
+```env
 POSTGRES_DB=gradeinsight
 POSTGRES_USER=your_user
 POSTGRES_PASSWORD=your_password
@@ -96,13 +100,13 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
-You may need to adjust other variables depending on deployment setup.
+Adjust values as needed for your environment.
 
 ---
 
 ## CSV Format
 
-Grade Insight expects a standardized CSV format for uploads:
+Grade Insight expects a structured CSV format:
 
 | Row | Description                                  |
 |-----|----------------------------------------------|
@@ -118,35 +122,24 @@ Grade Insight expects a standardized CSV format for uploads:
 
 **Example:**
 
-```
-### CSV Format
-
+```csv
 last_name,first_name,email,Assignment 1,Assignment 2,Assignment 3
 DATE,-,-,2025-06-01,2025-06-03,2025-06-05
 POINTS,-,-,100,100,100
 Smith,Alice,alice.smith@example.com,85,90,78
 Johnson,Bob,bob.johnson@example.com,88,92,81
 Brown,Charlie,charlie.brown@example.com,92,85,89
-
 ```
 
 ---
 
 ## Multi-Tenant Architecture
 
-- Each school acts as a tenant and is fully isolated
+- Each school is fully isolated as a tenant
 - School-specific subdomains (e.g., `greenvalley.gradeinsight.com`)
-- PostgreSQL can support logical separation via schemas or prefixing
-- Tenant is determined via subdomain or API key
+- PostgreSQL supports logical separation via schemas or table prefixes
+- Tenants are identified by subdomain or API key
 
----
-
-<!-- ## Deployment Notes
-
-- Designed to run behind a reverse proxy (e.g., NGINX, Traefik)
-- TLS certificates can be added with Let’s Encrypt or custom certs
-- Email and authentication systems can be integrated later (roadmap)
--->
 ---
 
 ## Roadmap
@@ -160,4 +153,3 @@ Brown,Charlie,charlie.brown@example.com,92,85,89
 ## License
 
 This project is licensed under the MIT License.
-
