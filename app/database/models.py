@@ -45,7 +45,7 @@ class TenantMixin:
         return tenant_id
 
 
-class Tenant(Base):
+class TenantRegistry(Base):
     """
     Tenant registry - central source of truth for all tenants
     
