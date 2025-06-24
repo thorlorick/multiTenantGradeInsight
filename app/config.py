@@ -6,7 +6,7 @@ configuration values throughout the application.
 """
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
@@ -54,14 +54,14 @@ class Settings(BaseSettings):
     
     # File Upload Configuration
     max_file_size_mb: int = 50
-    allowed_file_types: List[str] = [".csv", ".xlsx", ".xls"]
+    allowed_file_types: Union[str, List[str]] = [".csv", ".xlsx", ".xls"]
     
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"
     
     # CORS (Cross-Origin Resource Sharing) for web browsers
-    allow_origins: List[str] = ["http://localhost:3000"]
+    allow_origins: Union[str, List[str]] = "http://localhost:3000"
     cors_enabled: bool = True
     
     # Pydantic v2 configuration
@@ -85,7 +85,8 @@ class Settings(BaseSettings):
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
+            origins = [origin.strip() for origin in v.split(',')]
+            return origins
         return v
     
     @property
