@@ -6,10 +6,10 @@ configuration values throughout the application.
 """
 
 import os
-from typing import Dict, List, Optional, Union
-from pydantic import validator, field_validator
+from typing import Dict, List, Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
-
+from pydantic import ConfigDict
 
 
 class Settings(BaseSettings):
@@ -61,16 +61,25 @@ class Settings(BaseSettings):
     log_format: str = "json"
     
     # CORS (Cross-Origin Resource Sharing) for web browsers
-    allow_origins: Union[str, List[str]] = [
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:8080"
-    ]
+    allow_origins: List[str] = ["http://localhost:3000"]
     cors_enabled: bool = True
-
+    
+    # Pydantic v2 configuration
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"  # This will ignore extra fields like POSTGRES_USER, DB_PASSWORD
+    )
+    
+    @field_validator('allowed_file_types', mode='before')
+    @classmethod
+    def parse_file_types(cls, v):
+        """Convert comma-separated string to list if needed"""
+        if isinstance(v, str):
+            return [ext.strip() for ext in v.split(',')]
+        return v
+    
     @field_validator('allow_origins', mode='before')
     @classmethod
     def parse_origins(cls, v):
@@ -78,7 +87,7 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(',')]
         return v
-
+    
     @property
     def database_shard_urls(self) -> Dict[int, str]:
         """
@@ -100,13 +109,6 @@ class Settings(BaseSettings):
     def max_file_size_bytes(self) -> int:
         """Convert MB to bytes for file size validation"""
         return self.max_file_size_mb * 1024 * 1024
-    
-    class Config:
-        # Tell Pydantic to load from .env file
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        # Make field names case insensitive
-        case_sensitive = False
 
 
 # Create a global settings instance
