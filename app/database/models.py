@@ -96,7 +96,38 @@ class Assignments(Base, TenantMixin):
     
     def __repr__(self):
         return f"<Assignments(name='{self.name}', points={self.total_points})>"
+# Add this to your app/database/models.py file
 
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.sql import func
+
+class TenantRegistry(Base):
+    """
+    Simple registry for schools using the grade management system.
+    Maps school subdomains to their basic info and database shard.
+    """
+    __tablename__ = "tenant_registry"
+    
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # School identification
+    tenant_id = Column(String(50), unique=True, nullable=False, index=True)  # e.g., "lincoln-high"
+    tenant_name = Column(String(200), nullable=False)  # e.g., "Lincoln High School"
+    subdomain = Column(String(50), unique=True, nullable=False, index=True)  # e.g., "lincoln-high"
+    
+    # Database sharding (simple)
+    shard_number = Column(Integer, nullable=False, default=1)  # Which database shard
+    
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<TenantRegistry(tenant_id='{self.tenant_id}', name='{self.tenant_name}')>"
 
 class Grade(Base, TenantMixin):
     """Individual grades - the actual marks from CSV"""
