@@ -58,7 +58,7 @@ class DatabaseManager:
             
             # Create tables
             async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         
         self._initialized = True
         print("✅ Database connections initialized!")
