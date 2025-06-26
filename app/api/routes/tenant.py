@@ -2,6 +2,18 @@ from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 import uuid
 
+# Add this router
+router = APIRouter(
+    prefix="/tenant",
+    tags=["tenant"]
+)
+
+@router.get("/info")
+async def get_tenant_info(request: Request):
+    """Get current tenant information"""
+    tenant_id = getattr(request.state, 'tenant_id', None)
+    return {"tenant_id": str(tenant_id) if tenant_id else None}
+
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Example: Get tenant_id from custom header "X-Tenant-ID"
