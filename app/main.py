@@ -93,7 +93,7 @@ from app.api.routes import dashboard_api, students, grades, tenant
 app.include_router(dashboard_api.router)
 app.include_router(students.router)
 app.include_router(grades.router)
-app.include_router(tenants.router)
+app.include_router(tenant.router)
 
 
 if __name__ == "__main__":
