@@ -95,7 +95,7 @@ class Assignments(Base, TenantMixin):
     )
     
     def __repr__(self):
-        return f"<Assignment(name='{self.name}', points={self.total_points})>"
+        return f"<Assignments(name='{self.name}', points={self.total_points})>"
 
 
 class Grade(Base, TenantMixin):
@@ -113,7 +113,7 @@ class Grade(Base, TenantMixin):
     
     # Relationships
     student = relationship("Student", back_populates="grades")
-    assignment = relationship("Assignment", back_populates="grades")
+    assignment = relationship("Assignments", back_populates="grades")
     
     # Constraints
     __table_args__ = (
@@ -161,9 +161,9 @@ class TenantQuery:
             self.session.flush()  # Get the ID
         return student
     
-    def get_or_create_assignment(self, name: str, assignment_date: str = None, total_points: float = 100.0) -> Assignment:
+    def get_or_create_assignment(self, name: str, assignment_date: str = None, total_points: float = 100.0) -> Assignments:
         """Get existing assignment or create new one"""
-        assignment = self.query(Assignment).filter(Assignment.name == name).first()
+        assignment = self.query(Assignments).filter(Assignments.name == name).first()
         if not assignment:
             date_obj = None
             if assignment_date and assignment_date != '-':
@@ -172,7 +172,7 @@ class TenantQuery:
                 except ValueError:
                     pass
             
-            assignment = Assignment(
+            assignment = Assignments(
                 tenant_id=self.tenant_id,
                 name=name,
                 assignment_date=date_obj,
@@ -182,7 +182,7 @@ class TenantQuery:
             self.session.flush()  # Get the ID
         return assignment
     
-    def create_or_update_grade(self, student: Student, assignment: Assignment, points_earned: float) -> Grade:
+    def create_or_update_grade(self, student: Student, assignment: Assignments, points_earned: float) -> Grade:
         """Create or update a grade"""
         grade = self.query(Grade).filter(
             Grade.student_id == student.id,
@@ -206,9 +206,9 @@ class TenantQuery:
         """Get all active students"""
         return self.query(Student).filter(Student.is_active == True).order_by(Student.last_name, Student.first_name).all()
     
-    def get_all_assignments(self) -> List[Assignment]:
+    def get_all_assignments(self) -> List[Assignments]:
         """Get all active assignments"""
-        return self.query(Assignment).filter(Assignment.is_active == True).order_by(Assignment.name).all()
+        return self.query(Assignments).filter(Assignments.is_active == True).order_by(Assignments.name).all()
     
     def get_grades_for_display(self) -> dict:
         """Get all data formatted for gradebook display"""
