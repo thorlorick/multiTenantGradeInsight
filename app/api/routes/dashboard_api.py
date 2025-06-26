@@ -1,498 +1,340 @@
+"""
+Simplified Dashboard API
+Matches your CSV-based gradebook system
+
+Endpoints:
+- Upload CSV and load grades
+- View gradebook data
+- Basic stats for parents
+"""
+
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, desc, case
-from datetime import datetime
+from sqlalchemy import func
+import uuid
+import io
 
 from app.database.connection import get_tenant_db_session
-from app.database.models import Student, Assignment, Grade, Subject
+from app.database.models import Student, Assignment, Grade, Tenant, create_tenant_session, parse_csv_and_load_grades
 from app.middleware.tenant import get_current_tenant_id
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
-async def ensure_tenant_resource_access(
-    session: Session, model_class, resource_id: int, tenant_id: str
+@router.post("/upload-csv")
+async def upload_csv_grades(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_current_tenant_id)
 ):
-    """
-    Ensure a resource exists and belongs to the current tenant.
-    """
-    query = select(model_class).where(
-        model_class.id == resource_id,
-        model_class.tenant_id == tenant_id
-    )
-    if hasattr(model_class, 'is_active'):
-        query = query.where(model_class.is_active.is_(True))
+    """Upload CSV file and load grades into database"""
+    
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(400, "File must be a CSV")
+    
+    try:
+        # Read CSV content
+        content = await file.read()
+        csv_content = content.decode('utf-8')
+        
+        async with get_tenant_db_session(tenant_id) as session:
+            # Parse and load grades
+            result = parse_csv_and_load_grades(session, uuid.UUID(tenant_id), csv_content)
+            
+            return {
+                'success': True,
+                'message': f"Loaded {result['grades_processed']} grades for {result['students_processed']} students across {result['assignments_created']} assignments",
+                'details': result
+            }
+            
+    except Exception as e:
+        raise HTTPException(400, f"Error processing CSV: {str(e)}")
 
-    result = await session.execute(query)
-    resource = result.scalar_one_or_none()
 
-    if not resource:
-        raise HTTPException(404, detail=f"{model_class.__name__} not found or access denied")
-
-    return resource
-
-
-@router.get("/grades")
-async def get_grades_data(
-    tenant_id: str = Depends(get_current_tenant_id),
-    student_search: Optional[str] = None,
-    assignment_search: Optional[str] = None,
-):
+@router.get("/gradebook")
+async def get_gradebook_data(tenant_id: str = Depends(get_current_tenant_id)):
+    """Get complete gradebook data for display"""
+    
     async with get_tenant_db_session(tenant_id) as session:
-        query = select(
-            Student.id.label('student_id'),
-            Student.first_name,
-            Student.last_name,
-            Student.email,
-            Student.grade_level,
-            Assignment.id.label('assignment_id'),
-            Assignment.name.label('assignment_name'),
-            Assignment.assignment_type,
-            Assignment.max_points,
-            Grade.points_earned,
-            Grade.points_possible,
-            Grade.created_at.label('grade_created_at')
-        ).select_from(
-            Student.__table__.outerjoin(Grade.__table__).outerjoin(Assignment.__table__)
-        ).where(
-            Student.tenant_id == tenant_id,
-            Student.is_active.is_(True),
-            (Grade.tenant_id == tenant_id) | (Grade.tenant_id.is_(None)),
-            (Assignment.tenant_id == tenant_id) | (Assignment.tenant_id.is_(None))
-        )
-
-        if student_search:
-            search_term = f"%{student_search.lower()}%"
-            query = query.where(
-                func.lower(Student.first_name).like(search_term) |
-                func.lower(Student.last_name).like(search_term) |
-                func.lower(Student.email).like(search_term)
-            )
-        if assignment_search:
-            search_term = f"%{assignment_search.lower()}%"
-            query = query.where(
-                func.lower(Assignment.name).like(search_term) |
-                func.lower(Assignment.assignment_type).like(search_term)
-            )
-
-        result = await session.execute(query)
-        rows = result.fetchall()
-
-        students_dict = {}
-        assignments_dict = {}
-
-        for row in rows:
-            student_key = row.student_id
-            if student_key not in students_dict:
-                students_dict[student_key] = {
-                    'id': row.student_id,
-                    'name': f"{row.first_name} {row.last_name}",
-                    'email': row.email,
-                    'grade_level': row.grade_level,
-                    'grades': {}
-                }
-            if row.assignment_id:
-                assignment_key = row.assignment_id
-                if assignment_key not in assignments_dict:
-                    assignments_dict[assignment_key] = {
-                        'id': row.assignment_id,
-                        'name': row.assignment_name,
-                        'type': row.assignment_type,
-                        'max_points': row.max_points
-                    }
-                if row.points_earned is not None:
-                    # Calculate percentage and letter grade
-                    percentage = (row.points_earned / row.points_possible) * 100 if row.points_possible > 0 else 0
-                    if percentage >= 90: letter_grade = "A"
-                    elif percentage >= 80: letter_grade = "B"
-                    elif percentage >= 70: letter_grade = "C"
-                    elif percentage >= 60: letter_grade = "D"
-                    else: letter_grade = "F"
-                    
-                    students_dict[student_key]['grades'][assignment_key] = {
-                        'points_earned': row.points_earned,
-                        'points_possible': row.points_possible,
-                        'percentage': round(percentage, 2),
-                        'letter_grade': letter_grade,
-                        'created_at': row.grade_created_at.isoformat() if row.grade_created_at else None
-                    }
-
+        tenant_query = create_tenant_session(session, uuid.UUID(tenant_id))
+        data = tenant_query.get_grades_for_display()
+        
         return {
-            'students': list(students_dict.values()),
-            'assignments': list(assignments_dict.values()),
-            'total_students': len(students_dict),
-            'total_assignments': len(assignments_dict)
+            'success': True,
+            'data': data,
+            'summary': {
+                'total_students': len(data['students']),
+                'total_assignments': len(data['assignments'])
+            }
+        }
+
+
+@router.get("/student/{email}/grades")
+async def get_student_grades_by_email(
+    email: str, 
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """Get grades for a specific student (for parents)"""
+    
+    async with get_tenant_db_session(tenant_id) as session:
+        tenant_query = create_tenant_session(session, uuid.UUID(tenant_id))
+        
+        # Find student by email
+        student = tenant_query.query(Student).filter(Student.email == email).first()
+        if not student:
+            raise HTTPException(404, "Student not found")
+        
+        # Get student's grades
+        grades = tenant_query.query(Grade).filter(Grade.student_id == student.id).all()
+        assignments = tenant_query.get_all_assignments()
+        assignment_lookup = {a.id: a for a in assignments}
+        
+        student_grades = []
+        for grade in grades:
+            assignment = assignment_lookup.get(grade.assignment_id)
+            if assignment:
+                student_grades.append({
+                    'assignment_name': assignment.name,
+                    'assignment_date': assignment.assignment_date.strftime('%Y-%m-%d') if assignment.assignment_date else None,
+                    'points_earned': grade.points_earned,
+                    'total_points': assignment.total_points,
+                    'percentage': grade.percentage
+                })
+        
+        # Calculate overall average
+        percentages = [g['percentage'] for g in student_grades if g['percentage'] is not None]
+        overall_average = round(sum(percentages) / len(percentages), 1) if percentages else None
+        
+        return {
+            'student': {
+                'name': student.full_name,
+                'email': student.email
+            },
+            'grades': student_grades,
+            'overall_average': overall_average,
+            'total_assignments': len(student_grades)
         }
 
 
 @router.get("/stats")
-async def get_dashboard_stats(tenant_id: str = Depends(get_current_tenant_id)):
+async def get_basic_stats(tenant_id: str = Depends(get_current_tenant_id)):
+    """Get basic statistics for the gradebook"""
+    
     async with get_tenant_db_session(tenant_id) as session:
-        total_students = (await session.execute(
-            select(func.count(Student.id)).where(
-                Student.tenant_id == tenant_id, Student.is_active.is_(True)
-            )
-        )).scalar()
-
-        total_assignments = (await session.execute(
-            select(func.count(Assignment.id)).where(
-                Assignment.tenant_id == tenant_id
-            )
-        )).scalar()
-
-        total_grades = (await session.execute(
-            select(func.count(Grade.id)).where(Grade.tenant_id == tenant_id)
-        )).scalar()
-
-        # Calculate average grade from points
-        grade_data = (await session.execute(
-            select(Grade.points_earned, Grade.points_possible).where(
-                Grade.tenant_id == tenant_id, 
-                Grade.points_earned.isnot(None),
-                Grade.points_possible > 0
-            )
-        )).fetchall()
+        # Count totals
+        total_students = session.query(Student).filter(
+            Student.tenant_id == uuid.UUID(tenant_id),
+            Student.is_active == True
+        ).count()
         
-        if grade_data:
-            percentages = [(g.points_earned / g.points_possible) * 100 for g in grade_data]
-            avg_grade = sum(percentages) / len(percentages)
-        else:
-            avg_grade = None
-
-        # Grade distribution
-        grade_distribution = {'A': 0, 'B': 0, 'C': 0, 'D': 0, 'F': 0}
-        for pct in (percentages if grade_data else []):
-            if pct >= 90: grade_distribution['A'] += 1
-            elif pct >= 80: grade_distribution['B'] += 1
-            elif pct >= 70: grade_distribution['C'] += 1
-            elif pct >= 60: grade_distribution['D'] += 1
-            else: grade_distribution['F'] += 1
-
-        # Recent grades
-        recent_grades_query = select(
-            Grade.points_earned,
-            Grade.points_possible,
-            Grade.created_at,
-            Student.first_name,
-            Student.last_name,
-            Assignment.name
-        ).select_from(
-            Grade.__table__.join(Student.__table__).join(Assignment.__table__)
-        ).where(
-            Grade.tenant_id == tenant_id
-        ).order_by(desc(Grade.created_at)).limit(10)
-
-        recent_result = await session.execute(recent_grades_query)
-        recent_grades = []
-        for row in recent_result:
-            percentage = (row.points_earned / row.points_possible) * 100 if row.points_possible > 0 else 0
-            recent_grades.append({
-                'student_name': f"{row.first_name} {row.last_name}",
-                'assignment_name': row.name,
-                'points_earned': row.points_earned,
-                'points_possible': row.points_possible,
-                'percentage': round(percentage, 2),
-                'created_at': row.created_at.isoformat() if row.created_at else None
-            })
-
+        total_assignments = session.query(Assignment).filter(
+            Assignment.tenant_id == uuid.UUID(tenant_id),
+            Assignment.is_active == True
+        ).count()
+        
+        total_grades = session.query(Grade).filter(
+            Grade.tenant_id == uuid.UUID(tenant_id)
+        ).count()
+        
+        # Calculate average grade
+        avg_result = session.query(func.avg(Grade.points_earned / Assignment.total_points * 100)).join(
+            Assignment, Grade.assignment_id == Assignment.id
+        ).filter(
+            Grade.tenant_id == uuid.UUID(tenant_id),
+            Grade.points_earned.isnot(None)
+        ).scalar()
+        
+        average_percentage = round(avg_result, 1) if avg_result else None
+        
         return {
             'total_students': total_students,
             'total_assignments': total_assignments,
             'total_grades': total_grades,
-            'average_grade': round(avg_grade, 2) if avg_grade else None,
-            'grade_distribution': grade_distribution,
-            'recent_grades': recent_grades
+            'average_percentage': average_percentage,
+            'completion_rate': round((total_grades / (total_students * total_assignments) * 100), 1) if total_students and total_assignments else 0
         }
 
 
-@router.get("/assignments")
-async def get_assignments(tenant_id: str = Depends(get_current_tenant_id)):
+@router.get("/assignment/{assignment_name}/stats")
+async def get_assignment_stats(
+    assignment_name: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """Get statistics for a specific assignment"""
+    
     async with get_tenant_db_session(tenant_id) as session:
-        result = await session.execute(
-            select(Assignment).where(
-                Assignment.tenant_id == tenant_id
-            ).order_by(Assignment.name)
-        )
-        assignments = result.scalars().all()
-
-        return [
-            {
-                'id': a.id,
-                'name': a.name,
-                'type': a.assignment_type,
-                'max_points': a.max_points,
-                'due_date': a.due_date.isoformat() if a.due_date else None,
-                'created_at': a.created_at.isoformat() if a.created_at else None
+        tenant_query = create_tenant_session(session, uuid.UUID(tenant_id))
+        
+        # Find assignment
+        assignment = tenant_query.query(Assignment).filter(Assignment.name == assignment_name).first()
+        if not assignment:
+            raise HTTPException(404, "Assignment not found")
+        
+        # Get all grades for this assignment
+        grades = tenant_query.query(Grade).filter(Grade.assignment_id == assignment.id).all()
+        
+        if not grades:
+            return {
+                'assignment': {
+                    'name': assignment.name,
+                    'total_points': assignment.total_points,
+                    'date': assignment.assignment_date.strftime('%Y-%m-%d') if assignment.assignment_date else None
+                },
+                'stats': {
+                    'total_submissions': 0,
+                    'average_percentage': None,
+                    'highest_score': None,
+                    'lowest_score': None
+                }
             }
-            for a in assignments
-        ]
-
-
-@router.get("/students")
-async def get_students(tenant_id: str = Depends(get_current_tenant_id)):
-    async with get_tenant_db_session(tenant_id) as session:
-        result = await session.execute(
-            select(Student).where(
-                Student.tenant_id == tenant_id,
-                Student.is_active.is_(True)
-            ).order_by(Student.last_name, Student.first_name)
-        )
-        students = result.scalars().all()
-
-        return [
-            {
-                'id': s.id,
-                'student_number': s.student_number,
-                'name': s.full_name,
-                'first_name': s.first_name,
-                'last_name': s.last_name,
-                'email': s.email,
-                'grade_level': s.grade_level,
-                'created_at': s.created_at.isoformat() if s.created_at else None
+        
+        # Calculate statistics
+        percentages = [g.percentage for g in grades if g.percentage is not None]
+        scores = [g.points_earned for g in grades if g.points_earned is not None]
+        
+        return {
+            'assignment': {
+                'name': assignment.name,
+                'total_points': assignment.total_points,
+                'date': assignment.assignment_date.strftime('%Y-%m-%d') if assignment.assignment_date else None
+            },
+            'stats': {
+                'total_submissions': len(grades),
+                'average_percentage': round(sum(percentages) / len(percentages), 1) if percentages else None,
+                'highest_score': max(scores) if scores else None,
+                'lowest_score': min(scores) if scores else None,
+                'highest_percentage': max(percentages) if percentages else None,
+                'lowest_percentage': min(percentages) if percentages else None
             }
-            for s in students
-        ]
+        }
 
 
-@router.get("/downloadTemplate")
+@router.get("/download-template")
 async def download_csv_template():
-    from fastapi.responses import Response
-    csv_content = (
-        "student_number,first_name,last_name,email,assignment_name,assignment_type,points_earned,points_possible,due_date\n"
-        "STU001,John,Doe,john.doe@student.school.edu,Math Quiz 1,quiz,85,100,2024-01-15\n"
-        "STU002,Jane,Smith,jane.smith@student.school.edu,Math Quiz 1,quiz,92,100,2024-01-15\n"
-        "STU001,John,Doe,john.doe@student.school.edu,English Essay,essay,78,100,2024-01-20\n"
-        "STU002,Jane,Smith,jane.smith@student.school.edu,English Essay,essay,88,100,2024-01-20"
-    )
+    """Download CSV template matching your format"""
+    
+    csv_content = """last_name,first_name,email,Math Test,Essay 1,Science Lab
+DATE,-,-,2025-06-01,2025-06-03,2025-06-05
+POINTS,-,-,100,100,100
+Smith,Alice,alice.smith@example.com,85,90,78
+Johnson,Bob,bob.johnson@example.com,88,92,81
+Brown,Charlie,charlie.brown@example.com,92,85,89"""
+    
     return Response(
         content=csv_content,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=grade_template.csv"}
+        headers={"Content-Disposition": "attachment; filename=gradebook_template.csv"}
     )
 
 
-@router.get("/search")
-async def search_grades(
-    tenant_id: str = Depends(get_current_tenant_id),
-    q: Optional[str] = None,
-    type: Optional[str] = None  # 'student' or 'assignment'
-):
-    if not q:
-        return {'results': []}
-
+@router.get("/export-grades")
+async def export_grades_csv(tenant_id: str = Depends(get_current_tenant_id)):
+    """Export current grades in the same CSV format"""
+    
     async with get_tenant_db_session(tenant_id) as session:
-        search_term = f"%{q.lower()}%"
-
-        if type == 'student':
-            result = await session.execute(
-                select(Student).where(
-                    Student.tenant_id == tenant_id,
-                    Student.is_active.is_(True),
-                    (func.lower(Student.first_name).like(search_term) |
-                     func.lower(Student.last_name).like(search_term) |
-                     func.lower(Student.email).like(search_term))
-                ).limit(10)
-            )
-            students = result.scalars().all()
-            return {
-                'results': [
-                    {'id': s.id, 'name': s.full_name, 'email': s.email, 'type': 'student'}
-                    for s in students
-                ]
-            }
-
-        elif type == 'assignment':
-            result = await session.execute(
-                select(Assignment).where(
-                    Assignment.tenant_id == tenant_id,
-                    (func.lower(Assignment.name).like(search_term) |
-                     func.lower(Assignment.assignment_type).like(search_term))
-                ).limit(10)
-            )
-            assignments = result.scalars().all()
-            return {
-                'results': [
-                    {
-                        'id': a.id,
-                        'name': a.name,
-                        'type': a.assignment_type,
-                        'assignment_type': 'assignment'
-                    }
-                    for a in assignments
-                ]
-            }
-
-        else:
-            # Search both students and assignments
-            student_query = select(Student).where(
-                Student.tenant_id == tenant_id,
-                Student.is_active.is_(True),
-                (func.lower(Student.first_name).like(search_term) |
-                 func.lower(Student.last_name).like(search_term) |
-                 func.lower(Student.email).like(search_term))
-            ).limit(5)
-            
-            assignment_query = select(Assignment).where(
-                Assignment.tenant_id == tenant_id,
-                (func.lower(Assignment.name).like(search_term) |
-                 func.lower(Assignment.assignment_type).like(search_term))
-            ).limit(5)
-
-            student_result = await session.execute(student_query)
-            assignment_result = await session.execute(assignment_query)
-
-            students = student_result.scalars().all()
-            assignments = assignment_result.scalars().all()
-
-            results = [
-                {'id': s.id, 'name': s.full_name, 'email': s.email, 'type': 'student'}
-                for s in students
-            ] + [
-                {
-                    'id': a.id,
-                    'name': a.name,
-                    'type': a.assignment_type,
-                    'assignment_type': 'assignment'
-                }
-                for a in assignments
-            ]
-
-            return {'results': results}
-
-
-@router.get("/student/{student_id}/grades")
-async def get_student_grades(
-    student_id: int, tenant_id: str = Depends(get_current_tenant_id)
-):
-    async with get_tenant_db_session(tenant_id) as session:
-        student = await ensure_tenant_resource_access(session, Student, student_id, tenant_id)
-
-        grades_query = select(
-            Grade.id,
-            Grade.points_earned,
-            Grade.points_possible,
-            Grade.created_at,
-            Assignment.name,
-            Assignment.assignment_type,
-            Assignment.max_points,
-            Assignment.due_date
-        ).select_from(
-            Grade.__table__.join(Assignment.__table__)
-        ).where(
-            Grade.student_id == student_id,
-            Grade.tenant_id == tenant_id
-        ).order_by(desc(Grade.created_at))
-
-        grades_result = await session.execute(grades_query)
-        grades = grades_result.fetchall()
-
-        grade_list = []
-        for g in grades:
-            percentage = (g.points_earned / g.points_possible) * 100 if g.points_possible > 0 else 0
-            if percentage >= 90: letter_grade = "A"
-            elif percentage >= 80: letter_grade = "B"
-            elif percentage >= 70: letter_grade = "C"
-            elif percentage >= 60: letter_grade = "D"
-            else: letter_grade = "F"
-            
-            grade_list.append({
-                'id': g.id,
-                'points_earned': g.points_earned,
-                'points_possible': g.points_possible,
-                'percentage': round(percentage, 2),
-                'letter_grade': letter_grade,
-                'created_at': g.created_at.isoformat() if g.created_at else None,
-                'assignment': {
-                    'name': g.name,
-                    'type': g.assignment_type,
-                    'max_points': g.max_points,
-                    'due_date': g.due_date.isoformat() if g.due_date else None
-                }
-            })
-
-        return {
-            'student': {
-                'id': student.id,
-                'name': student.full_name,
-                'email': student.email,
-                'grade_level': student.grade_level
-            },
-            'grades': grade_list
-        }
-
-
-@router.get("/assignment/{assignment_id}/grades")
-async def get_assignment_grades(
-    assignment_id: int, tenant_id: str = Depends(get_current_tenant_id)
-):
-    async with get_tenant_db_session(tenant_id) as session:
-        assignment = await ensure_tenant_resource_access(session, Assignment, assignment_id, tenant_id)
-
-        grades_query = select(
-            Grade.id,
-            Grade.points_earned,
-            Grade.points_possible,
-            Grade.created_at,
-            Student.first_name,
-            Student.last_name,
-            Student.email,
-            Student.grade_level
-        ).select_from(
-            Grade.__table__.join(Student.__table__)
-        ).where(
-            Grade.assignment_id == assignment_id,
-            Grade.tenant_id == tenant_id
-        ).order_by(Student.last_name, Student.first_name)
-
-        grades_result = await session.execute(grades_query)
-        grades = grades_result.fetchall()
-
-        total_grades = len(grades)
-        percentages = []
-        grade_list = []
+        tenant_query = create_tenant_session(session, uuid.UUID(tenant_id))
+        data = tenant_query.get_grades_for_display()
         
-        for g in grades:
-            percentage = (g.points_earned / g.points_possible) * 100 if g.points_possible > 0 else 0
-            percentages.append(percentage)
+        if not data['students'] or not data['assignments']:
+            raise HTTPException(404, "No data to export")
+        
+        # Build CSV content
+        csv_lines = []
+        
+        # Header row
+        headers = ['last_name', 'first_name', 'email'] + [a['name'] for a in data['assignments']]
+        csv_lines.append(','.join(headers))
+        
+        # Date row
+        dates = ['DATE', '-', '-'] + [a['date'] or '-' for a in data['assignments']]
+        csv_lines.append(','.join(dates))
+        
+        # Points row
+        points = ['POINTS', '-', '-'] + [str(int(a['total_points'])) for a in data['assignments']]
+        csv_lines.append(','.join(points))
+        
+        # Student data rows
+        for student in data['students']:
+            row = [
+                student['last_name'],
+                student['first_name'],
+                student['email']
+            ]
             
-            if percentage >= 90: letter_grade = "A"
-            elif percentage >= 80: letter_grade = "B"
-            elif percentage >= 70: letter_grade = "C"
-            elif percentage >= 60: letter_grade = "D"
-            else: letter_grade = "F"
+            for assignment in data['assignments']:
+                grade = student['grades'].get(assignment['id'])
+                if grade and grade['points_earned'] is not None:
+                    row.append(str(grade['points_earned']))
+                else:
+                    row.append('-')
             
-            grade_list.append({
-                'id': g.id,
-                'points_earned': g.points_earned,
-                'points_possible': g.points_possible,
-                'percentage': round(percentage, 2),
-                'letter_grade': letter_grade,
-                'created_at': g.created_at.isoformat() if g.created_at else None,
-                'student': {
-                    'name': f"{g.first_name} {g.last_name}",
-                    'email': g.email,
-                    'grade_level': g.grade_level
-                }
-            })
+            csv_lines.append(','.join(row))
+        
+        csv_content = '\n'.join(csv_lines)
+        
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=exported_grades.csv"}
+        )
 
-        avg_percentage = sum(percentages) / len(percentages) if percentages else None
-        highest_percentage = max(percentages) if percentages else None
-        lowest_percentage = min(percentages) if percentages else None
 
+@router.delete("/clear-data")
+async def clear_all_data(tenant_id: str = Depends(get_current_tenant_id)):
+    """Clear all grades, assignments, and students for this tenant"""
+    
+    async with get_tenant_db_session(tenant_id) as session:
+        # Delete in correct order (foreign key constraints)
+        session.query(Grade).filter(Grade.tenant_id == uuid.UUID(tenant_id)).delete()
+        session.query(Assignment).filter(Assignment.tenant_id == uuid.UUID(tenant_id)).delete()
+        session.query(Student).filter(Student.tenant_id == uuid.UUID(tenant_id)).delete()
+        
+        session.commit()
+        
         return {
-            'assignment': {
-                'id': assignment.id,
-                'name': assignment.name,
-                'type': assignment.assignment_type,
-                'max_points': assignment.max_points,
-                'due_date': assignment.due_date.isoformat() if assignment.due_date else None
-            },
-            'statistics': {
-                'total_submissions': total_grades,
-                'average_percentage': round(avg_percentage, 2) if avg_percentage else None,
-                'highest_percentage': highest_percentage,
-                'lowest_percentage': lowest_percentage
-            },
-            'grades': grade_list
+            'success': True,
+            'message': 'All data cleared for this tenant'
         }
+
+
+@router.get("/search")
+async def search_students(
+    q: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """Simple search for students by name or email"""
+    
+    if not q or len(q) < 2:
+        return {'results': []}
+    
+    async with get_tenant_db_session(tenant_id) as session:
+        tenant_query = create_tenant_session(session, uuid.UUID(tenant_id))
+        
+        search_term = f"%{q.lower()}%"
+        students = tenant_query.query(Student).filter(
+            (func.lower(Student.first_name).like(search_term)) |
+            (func.lower(Student.last_name).like(search_term)) |
+            (func.lower(Student.email).like(search_term))
+        ).limit(10).all()
+        
+        return {
+            'results': [
+                {
+                    'name': student.full_name,
+                    'email': student.email,
+                    'id': student.id
+                }
+                for student in students
+            ]
+        }
+
+
+# Simple health check
+@router.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {
+        'status': 'healthy',
+        'service': 'Simple Multi-Tenant Gradebook API'
+    }
