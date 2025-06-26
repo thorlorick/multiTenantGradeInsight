@@ -72,7 +72,7 @@ class Student(Base, TenantMixin):
         return f"<Student(email='{self.email}', name='{self.full_name}')>"
 
 
-class Assignment(Base, TenantMixin):
+class Assignments(Base, TenantMixin):
     """Assignments - matches your CSV columns after email"""
     __tablename__ = "assignments"
     
