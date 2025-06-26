@@ -13,10 +13,6 @@ from app.database.models import Base, TenantRegistry
 
 
 class DatabaseManager:
-    """
-    Simple database manager for multi-tenant grade system
-    Routes tenants to the correct database shard
-    """
     
     def __init__(self):
         self.shard_engines: Dict[int, any] = {}
