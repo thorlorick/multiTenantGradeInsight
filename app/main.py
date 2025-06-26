@@ -88,7 +88,7 @@ async def health_check():
 
 
 # Import and include API routes
-from app.api.routes import dashboard_api, students, grades, tenants
+from app.api.routes import dashboard_api, students, grades, tenant
 
 app.include_router(dashboard_api.router)
 app.include_router(students.router)
