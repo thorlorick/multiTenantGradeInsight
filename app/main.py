@@ -23,10 +23,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting Multi-Tenant Grade Insight...")
-       await initialize_database(
-        database_urls=settings.database_shard_urls,
-        registry_url=settings.tenant_registry_url
-    )
+    await initialize_database()  # This line should be indented with 4 spaces
     print("✅ Application startup complete!")
     
     yield
