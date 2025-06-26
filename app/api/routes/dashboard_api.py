@@ -17,7 +17,7 @@ import uuid
 import io
 
 from app.database.connection import get_tenant_db_session
-from app.database.models import Student, Assignment, Grade, Tenant, create_tenant_session, parse_csv_and_load_grades
+from app.database.models import Student, Assignments, Grade, Tenant, create_tenant_session, parse_csv_and_load_grades
 from app.middleware.tenant import get_current_tenant_id
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
