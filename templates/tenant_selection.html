@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Insight - Select School</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <!-- Header -->
+            <div class="text-center">
+                <div class="mx-auto h-20 w-20 bg-indigo-600 rounded-full flex items-center justify-center mb-6">
+                    <i class="fas fa-graduation-cap text-white text-3xl"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-gray-900">Grade Insight</h2>
+                <p class="mt-2 text-sm text-gray-600">Select your school to continue</p>
+            </div>
+
+            <!-- Tenant Selection Form -->
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <form id="tenantForm" class="space-y-6">
+                    <div>
+                        <label for="tenantId" class="block text-sm font-medium text-gray-700 mb-2">
+                            School/Organization ID
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="tenantId" 
+                                name="tenantId" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Enter your school ID (UUID format)"
+                                required
+                            >
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <i class="fas fa-school text-gray-400"></i>
+                            </div>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Example: 123e4567-e89b-12d3-a456-426614174000
+                        </p>
+                    </div>
+
+                    <!-- Quick Demo Options (Optional) -->
+                    <div class="border-t pt-4">
+                        <p class="text-sm font-medium text-gray-700 mb-3">Quick Demo Schools:</p>
+                        <div class="grid grid-cols-1 gap-2">
+                            <button 
+                                type="button" 
+                                class="demo-tenant text-left px-3 py-2 border border-gray-200 rounded-md hover:bg-gray-50 text-sm"
+                                data-tenant="123e4567-e89b-12d3-a456-426614174000"
+                            >
+                                <span class="font-medium">Sunrise Elementary</span>
+                                <span class="text-gray-500 block text-xs">123e4567-e89b-12d3-a456-426614174000</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                class="demo-tenant text-left px-3 py-2 border border-gray-200 rounded-md hover:bg-gray-50 text-sm"
+                                data-tenant="987f6543-a21b-34c5-d678-910111213141"
+                            >
+                                <span class="font-medium">Oakwood High School</span>
+                                <span class="text-gray-500 block text-xs">987f6543-a21b-34c5-d678-910111213141</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        id="submitBtn"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <span id="submitText">Access Dashboard</span>
+                        <i id="loadingIcon" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                    </button>
+                </form>
+
+                <!-- Error Message -->
+                <div id="errorMessage" class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md hidden">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-400 mt-0.5"></i>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-800" id="errorText"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center text-xs text-gray-500">
+                <p>Contact your school administrator for your organization ID</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Handle demo tenant selection
+        document.querySelectorAll('.demo-tenant').forEach(button => {
+            button.addEventListener('click', function() {
+                const tenantId = this.getAttribute('data-tenant');
+                document.getElementById('tenantId').value = tenantId;
+            });
+        });
+
+        // Handle form submission
+        document.getElementById('tenantForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const tenantId = document.getElementById('tenantId').value.trim();
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const loadingIcon = document.getElementById('loadingIcon');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Validate UUID format (basic check)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(tenantId)) {
+                showError('Please enter a valid UUID format for the tenant ID');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitText.textContent = 'Validating...';
+            loadingIcon.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+
+            try {
+                // Store tenant ID in localStorage for future requests
+                localStorage.setItem('tenantId', tenantId);
+                
+                // Test the tenant ID by making a request to the health endpoint with the header
+                const response = await fetch('/health', {
+                    headers: {
+                        'X-Tenant-ID': tenantId
+                    }
+                });
+
+                if (response.ok) {
+                    // Tenant ID is valid, redirect to dashboard
+                    window.location.href = '/dashboard';
+                } else {
+                    throw new Error('Invalid tenant ID or server error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Unable to validate tenant ID. Please check your connection and try again.');
+                
+                // Reset button state
+                submitBtn.disabled = false;
+                submitText.textContent = 'Access Dashboard';
+                loadingIcon.classList.add('hidden');
+            }
+        });
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        // Load saved tenant ID if available
+        window.addEventListener('load', function() {
+            const savedTenantId = localStorage.getItem('tenantId');
+            if (savedTenantId) {
+                document.getElementById('tenantId').value = savedTenantId;
+            }
+        });
+    </script>
+</body>
+</html>
