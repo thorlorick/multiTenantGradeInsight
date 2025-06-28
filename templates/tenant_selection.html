@@ -16,53 +16,45 @@
                     <i class="fas fa-graduation-cap text-white text-3xl"></i>
                 </div>
                 <h2 class="text-3xl font-extrabold text-gray-900">Grade Insight</h2>
-                <p class="mt-2 text-sm text-gray-600">Select your school to continue</p>
+                <p class="mt-2 text-sm text-gray-600">Find and select your school</p>
             </div>
 
-            <!-- Tenant Selection Form -->
+            <!-- School Search Form -->
             <div class="bg-white rounded-lg shadow-lg p-8">
-                <form id="tenantForm" class="space-y-6">
+                <form id="schoolForm" class="space-y-6">
                     <div>
-                        <label for="tenantId" class="block text-sm font-medium text-gray-700 mb-2">
-                            School/Organization ID
+                        <label for="schoolSearch" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-search text-gray-400 mr-2"></i>Search for your school
                         </label>
                         <div class="relative">
                             <input 
                                 type="text" 
-                                id="tenantId" 
-                                name="tenantId" 
+                                id="schoolSearch" 
+                                name="schoolSearch" 
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="Enter your school ID (UUID format)"
-                                required
+                                placeholder="Type your school name..."
+                                autocomplete="off"
                             >
                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
                                 <i class="fas fa-school text-gray-400"></i>
                             </div>
                         </div>
-                        <p class="mt-1 text-xs text-gray-500">
-                            Example: 123e4567-e89b-12d3-a456-426614174000
-                        </p>
+                        
+                        <!-- Search Results Dropdown -->
+                        <div id="searchResults" class="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 hidden max-h-60 overflow-y-auto">
+                            <!-- Results will be populated here -->
+                        </div>
                     </div>
 
-                    <!-- Quick Demo Options (Optional) -->
-                    <div class="border-t pt-4">
-                        <p class="text-sm font-medium text-gray-700 mb-3">Quick Demo Schools:</p>
-                        <div class="grid grid-cols-1 gap-2">
-                            <button 
-                                type="button" 
-                                class="demo-tenant text-left px-3 py-2 border border-gray-200 rounded-md hover:bg-gray-50 text-sm"
-                                data-tenant="123e4567-e89b-12d3-a456-426614174000"
-                            >
-                                <span class="font-medium">Sunrise Elementary</span>
-                                <span class="text-gray-500 block text-xs">123e4567-e89b-12d3-a456-426614174000</span>
-                            </button>
-                            <button 
-                                type="button" 
-                                class="demo-tenant text-left px-3 py-2 border border-gray-200 rounded-md hover:bg-gray-50 text-sm"
-                                data-tenant="987f6543-a21b-34c5-d678-910111213141"
-                            >
-                                <span class="font-medium">Oakwood High School</span>
-                                <span class="text-gray-500 block text-xs">987f6543-a21b-34c5-d678-910111213141</span>
+                    <!-- Selected School Display -->
+                    <div id="selectedSchool" class="hidden p-4 bg-indigo-50 border border-indigo-200 rounded-md">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 id="selectedSchoolName" class="font-medium text-indigo-900"></h3>
+                                <p id="selectedSchoolCode" class="text-sm text-indigo-600"></p>
+                            </div>
+                            <button type="button" id="clearSelection" class="text-indigo-600 hover:text-indigo-800">
+                                <i class="fas fa-times"></i>
                             </button>
                         </div>
                     </div>
@@ -71,6 +63,7 @@
                         type="submit" 
                         id="submitBtn"
                         class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled
                     >
                         <span id="submitText">Access Dashboard</span>
                         <i id="loadingIcon" class="fas fa-spinner fa-spin ml-2 hidden"></i>
@@ -88,50 +81,163 @@
                 </div>
             </div>
 
+            <!-- Alternative Access -->
+            <div class="text-center">
+                <button id="showAdvanced" class="text-sm text-indigo-600 hover:text-indigo-800">
+                    Have a school code? Click here
+                </button>
+            </div>
+
+            <!-- Advanced/Code Input (Hidden by default) -->
+            <div id="advancedSection" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Enter School Code</h3>
+                <div class="flex space-x-2">
+                    <input 
+                        type="text" 
+                        id="schoolCode" 
+                        placeholder="e.g., OAK-HS or UUID"
+                        class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                    <button 
+                        type="button"
+                        id="codeSubmit"
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        Go
+                    </button>
+                </div>
+            </div>
+
             <!-- Footer -->
             <div class="text-center text-xs text-gray-500">
-                <p>Contact your school administrator for your organization ID</p>
+                <p>Can't find your school? Contact your administrator</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Handle demo tenant selection
-        document.querySelectorAll('.demo-tenant').forEach(button => {
-            button.addEventListener('click', function() {
-                const tenantId = this.getAttribute('data-tenant');
-                document.getElementById('tenantId').value = tenantId;
-            });
+        // Mock school database - in real app, this would be an API call
+        const schools = [
+            { id: '123e4567-e89b-12d3-a456-426614174000', name: 'Sunrise Elementary School', code: 'SUN-ELEM', district: 'Springfield District' },
+            { id: '987f6543-a21b-34c5-d678-910111213141', name: 'Oakwood High School', code: 'OAK-HS', district: 'Springfield District' },
+            { id: '456a7890-b12c-34d5-e678-901234567890', name: 'Lincoln Middle School', code: 'LIN-MS', district: 'Springfield District' },
+            { id: '789b0123-c45d-67e8-f901-234567890123', name: 'Roosevelt Elementary', code: 'ROO-ELEM', district: 'Springfield District' },
+            { id: '012c3456-d78e-90f1-2345-678901234567', name: 'Washington Academy', code: 'WAS-ACAD', district: 'Springfield District' },
+            { id: '345d6789-e01f-23g4-5678-901234567890', name: 'Jefferson Technical High', code: 'JEF-TECH', district: 'Springfield District' }
+        ];
+
+        let selectedSchoolId = null;
+        let searchTimeout = null;
+
+        const searchInput = document.getElementById('schoolSearch');
+        const searchResults = document.getElementById('searchResults');
+        const selectedSchoolDiv = document.getElementById('selectedSchool');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Search functionality
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (query.length < 2) {
+                    hideResults();
+                    return;
+                }
+                
+                const results = schools.filter(school => 
+                    school.name.toLowerCase().includes(query) ||
+                    school.code.toLowerCase().includes(query) ||
+                    school.district.toLowerCase().includes(query)
+                );
+                
+                showResults(results);
+            }, 300);
         });
 
-        // Handle form submission
-        document.getElementById('tenantForm').addEventListener('submit', async function(e) {
+        function showResults(results) {
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="p-3 text-sm text-gray-500">No schools found</div>';
+            } else {
+                searchResults.innerHTML = results.map(school => `
+                    <div class="school-result p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0" 
+                         data-school-id="${school.id}">
+                        <div class="font-medium text-gray-900">${school.name}</div>
+                        <div class="text-sm text-gray-500">${school.district} • ${school.code}</div>
+                    </div>
+                `).join('');
+                
+                // Add click handlers
+                document.querySelectorAll('.school-result').forEach(result => {
+                    result.addEventListener('click', function() {
+                        const schoolId = this.getAttribute('data-school-id');
+                        selectSchool(schoolId);
+                    });
+                });
+            }
+            
+            searchResults.classList.remove('hidden');
+        }
+
+        function hideResults() {
+            searchResults.classList.add('hidden');
+        }
+
+        function selectSchool(schoolId) {
+            const school = schools.find(s => s.id === schoolId);
+            if (!school) return;
+
+            selectedSchoolId = schoolId;
+            
+            // Update UI
+            document.getElementById('selectedSchoolName').textContent = school.name;
+            document.getElementById('selectedSchoolCode').textContent = `${school.district} • ${school.code}`;
+            selectedSchoolDiv.classList.remove('hidden');
+            
+            // Clear search
+            searchInput.value = school.name;
+            hideResults();
+            
+            // Enable submit button
+            submitBtn.disabled = false;
+        }
+
+        // Clear selection
+        document.getElementById('clearSelection').addEventListener('click', function() {
+            selectedSchoolId = null;
+            selectedSchoolDiv.classList.add('hidden');
+            searchInput.value = '';
+            submitBtn.disabled = true;
+        });
+
+        // Hide results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#schoolSearch') && !e.target.closest('#searchResults')) {
+                hideResults();
+            }
+        });
+
+        // Form submission
+        document.getElementById('schoolForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const tenantId = document.getElementById('tenantId').value.trim();
-            const submitBtn = document.getElementById('submitBtn');
+            if (!selectedSchoolId) return;
+            
             const submitText = document.getElementById('submitText');
             const loadingIcon = document.getElementById('loadingIcon');
             const errorMessage = document.getElementById('errorMessage');
             
-            // Validate UUID format (basic check)
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(tenantId)) {
-                showError('Please enter a valid UUID format for the tenant ID');
-                return;
-            }
-
             // Show loading state
             submitBtn.disabled = true;
-            submitText.textContent = 'Validating...';
+            submitText.textContent = 'Connecting...';
             loadingIcon.classList.remove('hidden');
             errorMessage.classList.add('hidden');
 
             try {
-                // Store tenant ID in localStorage for future requests
-                localStorage.setItem('tenantId', tenantId);
+                // Store tenant ID (in real app, you'd use the school's actual tenant ID)
+                const tenantId = selectedSchoolId;
                 
-                // Test the tenant ID by making a request to the health endpoint with the header
+                // Test the connection
                 const response = await fetch('/health', {
                     headers: {
                         'X-Tenant-ID': tenantId
@@ -139,19 +245,46 @@
                 });
 
                 if (response.ok) {
-                    // Tenant ID is valid, redirect to dashboard
+                    // Success - redirect to dashboard
                     window.location.href = '/dashboard';
                 } else {
-                    throw new Error('Invalid tenant ID or server error');
+                    throw new Error('Connection failed');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showError('Unable to validate tenant ID. Please check your connection and try again.');
+                showError('Unable to connect to school system. Please try again.');
                 
                 // Reset button state
                 submitBtn.disabled = false;
                 submitText.textContent = 'Access Dashboard';
                 loadingIcon.classList.add('hidden');
+            }
+        });
+
+        // Advanced section toggle
+        document.getElementById('showAdvanced').addEventListener('click', function() {
+            const advancedSection = document.getElementById('advancedSection');
+            advancedSection.classList.toggle('hidden');
+            this.textContent = advancedSection.classList.contains('hidden') ? 
+                'Have a school code? Click here' : 'Hide school code entry';
+        });
+
+        // Code entry submission
+        document.getElementById('codeSubmit').addEventListener('click', function() {
+            const code = document.getElementById('schoolCode').value.trim();
+            
+            // Try to find school by code or UUID
+            const school = schools.find(s => 
+                s.code.toLowerCase() === code.toLowerCase() || 
+                s.id === code
+            );
+            
+            if (school) {
+                selectSchool(school.id);
+                document.getElementById('advancedSection').classList.add('hidden');
+                document.getElementById('showAdvanced').textContent = 'Have a school code? Click here';
+            } else {
+                showError('School code not found. Please check and try again.');
             }
         });
 
@@ -162,14 +295,6 @@
             errorText.textContent = message;
             errorMessage.classList.remove('hidden');
         }
-
-        // Load saved tenant ID if available
-        window.addEventListener('load', function() {
-            const savedTenantId = localStorage.getItem('tenantId');
-            if (savedTenantId) {
-                document.getElementById('tenantId').value = savedTenantId;
-            }
-        });
     </script>
 </body>
 </html>
