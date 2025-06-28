@@ -1,12 +1,12 @@
+version: '3.8'
+
 services:
   # FastAPI Application
   gradeinsight-app:
     build: .
     container_name: gradeinsight-app
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
+    expose:
+      - "8000"  # Only expose internally, nginx will handle external traffic
     environment:
       # Application Settings
       SECRET_KEY: your-secret-key-here-change-in-production
@@ -25,7 +25,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       
       # CORS settings
-      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,https://your-domain.com"
+      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,https://your-domain.com,http://len.uiscan.com"
     depends_on:
       - postgres-shard-1
       - postgres-shard-2
@@ -120,7 +120,7 @@ services:
       - gradeinsight-network
     restart: unless-stopped
 
-  # Nginx reverse proxy (optional for production)
+  # Nginx reverse proxy
   nginx:
     image: nginx:alpine
     container_name: nginx-proxy
@@ -128,15 +128,13 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
       - ./ssl:/etc/nginx/ssl
     depends_on:
       - gradeinsight-app
     networks:
       - gradeinsight-network
     restart: unless-stopped
-    profiles:
-      - production
 
 volumes:
   postgres_shard1_data:
