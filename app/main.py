@@ -66,15 +66,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Root endpoint
 @app.get("/", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """
-    Serve the main dashboard page.
-    """
-    return templates.TemplateResponse(
-        "dashboard.html", 
-        {"request": request}
-    )
-
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 # Health check endpoint (no tenant required)
 @app.get("/health")
