@@ -23,9 +23,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting Multi-Tenant Grade Insight...")
-    await initialize_database(
-        database_urls=settings.database_shard_urls,
-        registry_url=settings.tenant_registry_url) 
+    await initialize_database()
     print("✅ Application startup complete!")
     
     yield
@@ -64,11 +62,31 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Root endpoint
+# Root endpoint - Tenant Selection Page (NO TENANT REQUIRED)
 @app.get("/", response_class=HTMLResponse)
+async def tenant_selection(request: Request):
+    """
+    Serve the tenant selection page.
+    This page doesn't require tenant validation.
+    """
+    return templates.TemplateResponse(
+        "tenant_selection.html", 
+        {"request": request}
+    )
+
+
+# Dashboard endpoint (REQUIRES TENANT)
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    """
+    Serve the main dashboard page.
+    This requires tenant validation.
+    """
+    return templates.TemplateResponse(
+        "dashboard.html", 
+        {"request": request}
+    )
+
 
 # Health check endpoint (no tenant required)
 @app.get("/health")
@@ -84,12 +102,11 @@ async def health_check():
 
 
 # Import and include API routes
-from app.api.routes import dashboard_api, students, grades, tenant
+from app.api.routes import dashboard_api, students, grades
 
 app.include_router(dashboard_api.router)
 app.include_router(students.router)
 app.include_router(grades.router)
-app.include_router(tenant.router)
 
 
 if __name__ == "__main__":
