@@ -856,3 +856,158 @@ document.addEventListener('DOMContentLoaded', () => {
         new StudentGradePortal();
     }
 });
+
+//NEW FUNCTIONS FOR NEW MAIN.PY
+// Add this JavaScript to your existing dashboard.html template
+// or create a separate static/js/dashboard.js file and include it
+
+// Tenant ID management for API calls
+const TenantManager = {
+    getTenantId() {
+        return localStorage.getItem('tenantId');
+    },
+
+    setTenantId(tenantId) {
+        localStorage.setItem('tenantId', tenantId);
+    },
+
+    clearTenantId() {
+        localStorage.removeItem('tenantId');
+    },
+
+    // Redirect to tenant selection if no tenant ID
+    checkTenantId() {
+        const tenantId = this.getTenantId();
+        if (!tenantId) {
+            window.location.href = '/';
+            return false;
+        }
+        return tenantId;
+    },
+
+    // Get headers with tenant ID for API calls
+    getHeaders() {
+        const tenantId = this.getTenantId();
+        return {
+            'Content-Type': 'application/json',
+            'X-Tenant-ID': tenantId || ''
+        };
+    }
+};
+
+// Enhanced fetch function that automatically includes tenant headers
+async function tenantFetch(url, options = {}) {
+    const tenantId = TenantManager.checkTenantId();
+    if (!tenantId) return; // Will redirect to tenant selection
+
+    const defaultHeaders = TenantManager.getHeaders();
+    
+    const config = {
+        ...options,
+        headers: {
+            ...defaultHeaders,
+            ...options.headers
+        }
+    };
+
+    try {
+        const response = await fetch(url, config);
+        
+        // If unauthorized or tenant error, redirect to tenant selection
+        if (response.status === 400 || response.status === 401) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.detail && errorData.detail.includes('tenant')) {
+                TenantManager.clearTenantId();
+                window.location.href = '/';
+                return;
+            }
+        }
+        
+        return response;
+    } catch (error) {
+        console.error('API request failed:', error);
+        throw error;
+    }
+}
+
+// Example usage in your dashboard:
+// Replace your existing fetch calls with tenantFetch
+
+// Before:
+// fetch('/api/dashboard/stats')
+
+// After:
+// tenantFetch('/api/dashboard/stats')
+
+// Check tenant ID when dashboard loads
+document.addEventListener('DOMContentLoaded', function() {
+    const tenantId = TenantManager.checkTenantId();
+    if (!tenantId) return; // Will redirect
+
+    // Add logout/change tenant functionality
+    addTenantControls();
+    
+    // Your existing dashboard initialization code here
+    loadDashboardData();
+});
+
+function addTenantControls() {
+    // Add a small tenant indicator/logout button to your dashboard
+    const tenantId = TenantManager.getTenantId();
+    const shortTenantId = tenantId.substring(0, 8) + '...';
+    
+    // You can add this to your dashboard header
+    const tenantInfo = document.createElement('div');
+    tenantInfo.className = 'tenant-info';
+    tenantInfo.innerHTML = `
+        <div class="flex items-center space-x-2 text-sm text-gray-600">
+            <span>School: ${shortTenantId}</span>
+            <button onclick="changeTenant()" class="text-indigo-600 hover:text-indigo-800">
+                Change
+            </button>
+        </div>
+    `;
+    
+    // Insert into your header (adjust selector based on your HTML structure)
+    const header = document.querySelector('header') || document.querySelector('.header');
+    if (header) {
+        header.appendChild(tenantInfo);
+    }
+}
+
+function changeTenant() {
+    TenantManager.clearTenantId();
+    window.location.href = '/';
+}
+
+// Example: Load dashboard data using the new tenantFetch
+async function loadDashboardData() {
+    try {
+        // Load stats
+        const statsResponse = await tenantFetch('/api/dashboard/stats');
+        if (statsResponse && statsResponse.ok) {
+            const stats = await statsResponse.json();
+            updateStatsDisplay(stats);
+        }
+
+        // Load grades data
+        const gradesResponse = await tenantFetch('/api/dashboard/grades');
+        if (gradesResponse && gradesResponse.ok) {
+            const grades = await gradesResponse.json();
+            updateGradesDisplay(grades);
+        }
+    } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+    }
+}
+
+// Placeholder functions - replace with your actual implementation
+function updateStatsDisplay(stats) {
+    console.log('Stats loaded:', stats);
+    // Your stats display logic here
+}
+
+function updateGradesDisplay(grades) {
+    console.log('Grades loaded:', grades);
+    // Your grades display logic here
+}
