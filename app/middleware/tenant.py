@@ -60,3 +60,25 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Continue processing request
         response = await call_next(request)
         return response
+
+def get_current_tenant_id(request: Request) -> str:
+    """
+    Get the current tenant ID from the request state.
+    This function should be called after the TenantMiddleware has processed the request.
+    
+    Args:
+        request: FastAPI Request object
+        
+    Returns:
+        str: The tenant ID as a string
+        
+    Raises:
+        HTTPException: If tenant ID is not found in request state
+    """
+    if not hasattr(request.state, 'tenant_id'):
+        raise HTTPException(
+            status_code=500, 
+            detail="Tenant ID not found in request state. Ensure TenantMiddleware is properly configured."
+        )
+    
+    return request.state.tenant_id
