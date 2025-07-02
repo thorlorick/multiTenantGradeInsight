@@ -25,7 +25,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       
       # CORS settings
-      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,https://your-domain.com,http://len.uiscan.com"
+      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,http://len.uiscan.com"
     depends_on:
       - postgres-shard-1
       - postgres-shard-2
