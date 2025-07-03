@@ -6,10 +6,28 @@ configuration values throughout the application.
 """
 
 import os
-from typing import Dict, List, Optional, Union
-from pydantic import field_validator
-from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
+from typing import Dict, List, Optional
+from pydantic import BaseSettings, validator
+
+
+def load_secret_from_file(file_path: str) -> Optional[str]:
+    """
+    Load secret from file if it exists (Docker secrets).
+    
+    Args:
+        file_path: Path to the secret file
+        
+    Returns:
+        The secret value or None if file doesn't exist
+    """
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r') as f:
+                return f.read().strip()
+        except Exception as e:
+            print(f"Warning: Could not read secret file {file_path}: {e}")
+            return None
+    return None
 
 
 class Settings(BaseSettings):
@@ -54,39 +72,46 @@ class Settings(BaseSettings):
     
     # File Upload Configuration
     max_file_size_mb: int = 50
-    allowed_file_types: Union[str, List[str]] = [".csv", ".xlsx", ".xls"]
+    allowed_file_types: List[str] = [".csv", ".xlsx", ".xls"]
     
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"
     
     # CORS (Cross-Origin Resource Sharing) for web browsers
-    allow_origins: Union[str, List[str]] = "http://localhost:3000"
+    allow_origins: List[str] = ["http://localhost:3000"]
     cors_enabled: bool = True
     
-    # Pydantic v2 configuration
-    model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"  # This will ignore extra fields like POSTGRES_USER, DB_PASSWORD
-    )
+    def __init__(self, **kwargs):
+        # Load secrets from Docker secret files if available
+        secret_key_file = os.getenv("SECRET_KEY_FILE")
+        jwt_secret_key_file = os.getenv("JWT_SECRET_KEY_FILE")
+        
+        # Try to load from Docker secrets first, then fall back to environment variables
+        if secret_key_file and not kwargs.get('secret_key'):
+            secret_from_file = load_secret_from_file(secret_key_file)
+            if secret_from_file:
+                kwargs['secret_key'] = secret_from_file
+        
+        if jwt_secret_key_file and not kwargs.get('jwt_secret_key'):
+            jwt_secret_from_file = load_secret_from_file(jwt_secret_key_file)
+            if jwt_secret_from_file:
+                kwargs['jwt_secret_key'] = jwt_secret_from_file
+        
+        super().__init__(**kwargs)
     
-    @field_validator('allowed_file_types', mode='before')
-    @classmethod
+    @validator('allowed_file_types', pre=True)
     def parse_file_types(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
             return [ext.strip() for ext in v.split(',')]
         return v
     
-    @field_validator('allow_origins', mode='before')
-    @classmethod
+    @validator('allow_origins', pre=True)
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
-            origins = [origin.strip() for origin in v.split(',')]
-            return origins
+            return [origin.strip() for origin in v.split(',')]
         return v
     
     @property
@@ -110,6 +135,13 @@ class Settings(BaseSettings):
     def max_file_size_bytes(self) -> int:
         """Convert MB to bytes for file size validation"""
         return self.max_file_size_mb * 1024 * 1024
+    
+    class Config:
+        # Tell Pydantic to load from .env file
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        # Make field names case insensitive
+        case_sensitive = False
 
 
 # Create a global settings instance
