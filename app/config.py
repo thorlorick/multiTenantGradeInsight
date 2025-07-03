@@ -82,23 +82,35 @@ class Settings(BaseSettings):
     allow_origins: List[str] = ["http://localhost:3000"]
     cors_enabled: bool = True
     
-    def __init__(self, **kwargs):
-        # Load secrets from Docker secret files if available
-        secret_key_file = os.getenv("SECRET_KEY_FILE")
-        jwt_secret_key_file = os.getenv("JWT_SECRET_KEY_FILE")
+    @validator('secret_key', pre=True)
+    def load_secret_key(cls, v):
+        """Load SECRET_KEY from Docker secrets file if available"""
+        if v:
+            return v
         
-        # Try to load from Docker secrets first, then fall back to environment variables
-        if secret_key_file and not kwargs.get('secret_key'):
+        secret_key_file = os.getenv("SECRET_KEY_FILE")
+        if secret_key_file:
             secret_from_file = load_secret_from_file(secret_key_file)
             if secret_from_file:
-                kwargs['secret_key'] = secret_from_file
+                return secret_from_file
         
-        if jwt_secret_key_file and not kwargs.get('jwt_secret_key'):
+        # Fall back to environment variable
+        return os.getenv("SECRET_KEY")
+    
+    @validator('jwt_secret_key', pre=True)
+    def load_jwt_secret_key(cls, v):
+        """Load JWT_SECRET_KEY from Docker secrets file if available"""
+        if v:
+            return v
+        
+        jwt_secret_key_file = os.getenv("JWT_SECRET_KEY_FILE")
+        if jwt_secret_key_file:
             jwt_secret_from_file = load_secret_from_file(jwt_secret_key_file)
             if jwt_secret_from_file:
-                kwargs['jwt_secret_key'] = jwt_secret_from_file
+                return jwt_secret_from_file
         
-        super().__init__(**kwargs)
+        # Fall back to environment variable
+        return os.getenv("JWT_SECRET_KEY")
     
     @validator('allowed_file_types', pre=True)
     def parse_file_types(cls, v):
