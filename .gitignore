@@ -4,9 +4,15 @@ __pycache__/
 
 # Environments
 .env
+.env.*
 .venv/
 env/
 ENV/
+
+# Docker Secrets (CRITICAL - Never commit these!)
+secrets/
+*.key
+*.secret
 
 # Logs and runtime files
 *.log
@@ -33,3 +39,11 @@ static/css/*.min.css
 
 # Misc
 *.sqlite3
+
+# Additional security files
+ssl/
+*.pem
+*.crt
+*.key
+config/local.json
+config/production.json
