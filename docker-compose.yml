@@ -1,16 +1,28 @@
 version: '3.8'
 
+# Docker Secrets Configuration
+secrets:
+  secret_key:
+    file: ./secrets/secret_key.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+
 services:
   # FastAPI Application
   gradeinsight-app:
     build: .
     container_name: gradeinsight-app
-    expose:
-      - "8000"  # Only expose internally, nginx will handle external traffic
+    ports:
+      - "8000:8000"
+    secrets:
+      - secret_key
+      - jwt_secret
     environment:
+      # Tell the app where to find the secret files
+      SECRET_KEY_FILE: /run/secrets/secret_key
+      JWT_SECRET_KEY_FILE: /run/secrets/jwt_secret
+      
       # Application Settings
-      SECRET_KEY: your-secret-key-here-change-in-production
-      JWT_SECRET_KEY: your-jwt-secret-key-here-change-in-production
       DEBUG: "false"
       
       # Database Shards - PostgreSQL connections
@@ -25,7 +37,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       
       # CORS settings
-      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,http://len.uiscan.com"
+      ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8000,https://your-domain.com"
     depends_on:
       - postgres-shard-1
       - postgres-shard-2
@@ -120,21 +132,23 @@ services:
       - gradeinsight-network
     restart: unless-stopped
 
-  # Nginx reverse proxy
+  # Nginx reverse proxy (optional for production)
   nginx:
     image: nginx:alpine
     container_name: nginx-proxy
     ports:
-      - "8080:80"
+      - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx.conf:/etc/nginx/nginx.conf
       - ./ssl:/etc/nginx/ssl
     depends_on:
       - gradeinsight-app
     networks:
       - gradeinsight-network
     restart: unless-stopped
+    profiles:
+      - production
 
 volumes:
   postgres_shard1_data:
