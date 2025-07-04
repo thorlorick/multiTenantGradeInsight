@@ -7,27 +7,8 @@ configuration values throughout the application.
 
 import os
 from typing import Dict, List, Optional
-from pydantic import BaseSettings, validator
-
-
-def load_secret_from_file(file_path: str) -> Optional[str]:
-    """
-    Load secret from file if it exists (Docker secrets).
-    
-    Args:
-        file_path: Path to the secret file
-        
-    Returns:
-        The secret value or None if file doesn't exist
-    """
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, 'r') as f:
-                return f.read().strip()
-        except Exception as e:
-            print(f"Warning: Could not read secret file {file_path}: {e}")
-            return None
-    return None
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -82,44 +63,14 @@ class Settings(BaseSettings):
     allow_origins: List[str] = ["http://localhost:3000"]
     cors_enabled: bool = True
     
-    @validator('secret_key', pre=True)
-    def load_secret_key(cls, v):
-        """Load SECRET_KEY from Docker secrets file if available"""
-        if v:
-            return v
-        
-        secret_key_file = os.getenv("SECRET_KEY_FILE")
-        if secret_key_file:
-            secret_from_file = load_secret_from_file(secret_key_file)
-            if secret_from_file:
-                return secret_from_file
-        
-        # Fall back to environment variable
-        return os.getenv("SECRET_KEY")
-    
-    @validator('jwt_secret_key', pre=True)
-    def load_jwt_secret_key(cls, v):
-        """Load JWT_SECRET_KEY from Docker secrets file if available"""
-        if v:
-            return v
-        
-        jwt_secret_key_file = os.getenv("JWT_SECRET_KEY_FILE")
-        if jwt_secret_key_file:
-            jwt_secret_from_file = load_secret_from_file(jwt_secret_key_file)
-            if jwt_secret_from_file:
-                return jwt_secret_from_file
-        
-        # Fall back to environment variable
-        return os.getenv("JWT_SECRET_KEY")
-    
-    @validator('allowed_file_types', pre=True)
+    @field_validator('allowed_file_types', mode='before')
     def parse_file_types(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
             return [ext.strip() for ext in v.split(',')]
         return v
     
-    @validator('allow_origins', pre=True)
+    @field_validator('allow_origins', mode='before')
     def parse_origins(cls, v):
         """Convert comma-separated string to list if needed"""
         if isinstance(v, str):
