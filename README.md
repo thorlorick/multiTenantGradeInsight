@@ -28,13 +28,12 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 
 ### 👪 For Parents
 - See real-time updates on student progress
-- View assignments, marks, and trends by teacher/class
-- Filter by subject, term, or custom tags
+- View assignments, marks, by teacher/class
+- Filter by custom tags
 - Access through a school-branded portal (e.g., `yourschool.gradeinsight.com`)
 
 ### 🎓 For Students
-- View your current grades and assignment feedback
-- Track your progress across subjects, terms, or tags
+- View your current grades 
 - Stay updated with new marks as teachers upload them
 - Access through your school’s personalized portal (e.g., `yourschool.gradeinsight.com`)
 
