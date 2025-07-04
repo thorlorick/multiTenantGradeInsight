@@ -9,6 +9,7 @@ import os
 from typing import Dict, List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import validator
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
